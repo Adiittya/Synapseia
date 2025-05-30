@@ -1,256 +1,266 @@
-
-
-
 import streamlit as st
-import json
+from duckduckgo_search import DDGS
+import requests
+from bs4 import BeautifulSoup
+import time
+import random
 import logging
-from ollama import chat, ChatResponse
-from tools.custom_scrapper import search_and_scrape
-from tools.custom_yfinance import get_stock_summary
-from tools.custom_memories import store_memory, search_memory
-from ui_components.memory_manager import memory_manager_dialog
-from tool_schema import tools_schema 
-from tool_schema import tools_prompt
-import ast
+from urllib.parse import urlparse, urljoin
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# System prompt to guide tool usage
-
-
-
-
-available_functions = {
-    'search_and_scrape': search_and_scrape,
-    'skip_tools': lambda: "Answer provided directly by AI without external tools.",
-    'get_stock_summary': get_stock_summary,
-    'store_memory': store_memory,
-    "search_memory":search_memory
-}
-
-# ------------------------ LOGGING SETUP ------------------------
-
-logging.basicConfig(level=logging.INFO, filename="tool_logs.txt", filemode="a",
-                    format="%(asctime)s - %(levelname)s - %(message)s")
-
-emoji_map = {
-    "get_stock_summary": "📈",
-    "search_and_scrape": "🌐",
-    "skip_tools": "💡",
-    "store_memory": "😋",
-    "search_memory":"📝"
-}
-
-def stream_ollama_response(model: str, messages: list):
-    for chunk in chat(model, messages=messages, stream=True):
-        if chunk and getattr(chunk, "message", None):
-            yield chunk.message.content
-
-# ------------------------ STREAMLIT UI ------------------------
-
-st.set_page_config(page_title="Ollama Stock & Web Assistant", layout="wide")
-st.title("Adi'sss Stock & Web Assistant")
-
-
-if st.button("🗃️ Manage Memory"):
-    memory_manager_dialog() 
-    
-    
-if "query" not in st.session_state:
-    st.session_state.query = ""
-
-# Step 2: Quick suggestions with rerun
-st.markdown("#### 💡 Quick Suggestions:")
-suggestions = [
-    "What's the stock price of RELIANCE?",
-    "Show me latest news Tata motors.",
-    "What's the weather in Delhi?",
-    "Compare and do analysis of kotak and hdfc bank with latest price in table format"
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
 ]
 
-cols = st.columns(len(suggestions))
-for i, suggestion in enumerate(suggestions):
-    if cols[i].button(suggestion):
-        st.session_state.query = suggestion
-        st.rerun()  # 🚨 Force rerun before rendering text_input()
+def get_random_user_agent():
+    return random.choice(USER_AGENTS)
 
-# Step 3: Text input uses session state
-query = st.text_input("Ask a question:", value=st.session_state.query, key="query")
-
-# Step 4: Ask button logic
-if st.button("Ask") and query:
-    with st.spinner("Thinking..."):
-        initial_messages = [
-            {'role': 'system', 'content': tools_prompt.tool_system_prompt},
-            {'role': 'user', 'content': query}
-        ]
-
-        normal_messages = [
-            {'role': 'system', 'content': "You're a helpful AI assistant."},
-            {'role': 'user', 'content': query}
-        ]
-
-        memory_messages = [
-               {
-        'role': 'system',
-        'content': (
-            "You are a helpful AI assistant. Your role is to remember and refer to what the user has previously told you. "
-            "The context of the conversation may include entries from memory with the role 'tool', and you should use that information "
-            "to respond appropriately."
-        )
-    },
-            {
-                'role': 'user',
-                'content': query
-            }
-        ]
-
-
-        tools = [tools_schema.web_search_tool, tools_schema.skip_tool, tools_schema.stock_fetch_tool, tools_schema.store_memory_tool, tools_schema.search_memory_tool]
-
+def scrape_page(url, retries=3):
+    for attempt in range(retries):
         try:
-            response: ChatResponse = chat('llama3.2', messages=initial_messages, tools=tools)
-            print("call 1")
-        except Exception as e:
-            st.error(f"Chat model failed: {e}")
-            st.stop()
+            headers = {"User-Agent": get_random_user_agent()}
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        if response.message.tool_calls:
-            for tool in response.message.tool_calls:
-                func_name = tool.function.name
-                args = tool.function.arguments if isinstance(tool.function.arguments, dict) else {}
+            article = soup.find('article')
+            if article:
+                text = article.get_text(separator="\n", strip=True)
+            else:
+                elements = soup.find_all(['h1', 'h2', 'h3', 'p'])
+                text = "\n".join(el.get_text(strip=True) for el in elements)
 
-                # ✅ Log + Display tool selection
-                emoji = emoji_map.get(func_name, "🔧")
-                log_msg = f"{emoji} AI selected function: `{func_name}` with args {args}"
-                st.info(log_msg)
-                logging.info(log_msg)
+            return text[:2000]
 
-                # Skip tool
-                if func_name == "skip_tools":
-                    print("call 3 skips tools")
-                    st.subheader("💬 Answer:")
-                    st.write_stream(stream_ollama_response("llama3.2", normal_messages))
-                    continue
+        except requests.RequestException:
+            time.sleep(2 ** attempt)
+    return f"Failed to scrape {url} after {retries} retries."
 
-                # Validate inputs
-                if func_name == "search_and_scrape" and not args.get('query', '').strip():
-                    st.warning("Empty query passed to search tool. Skipping.")
-                    continue
+def get_best_logo_url(base_url):
+    try:
+        headers = {"User-Agent": get_random_user_agent()}
+        response = requests.get(base_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
 
-                if func_name == "get_stock_summary":
-                    stock_symbols = args.get('stock_symbols', '')
-                    if isinstance(stock_symbols, list):
-                        stock_symbols = ','.join(stock_symbols).strip()
-                    elif isinstance(stock_symbols, str):
-                        stock_symbols = stock_symbols.strip()
-                    else:
-                        stock_symbols = ''
-                    args['stock_symbols'] = stock_symbols
-                    if not stock_symbols:
-                        st.warning("No stock symbols detected. Skipping.")
-                        continue
-                    
-                            
-                func = available_functions.get(func_name)
-    
-                if func:
+        icon_candidates = []
+
+        for link in soup.find_all("link", rel=lambda x: x and 'icon' in x.lower()):
+            href = link.get('href')
+            sizes = link.get('sizes')
+            if href:
+                full_url = urljoin(base_url, href)
+                size_value = 0
+                if sizes:
                     try:
-                        if func_name == "search_and_scrape":
-                            with st.spinner("🕵️‍♂️ Sneaking around the web, illegally scraping data... 🤫"):
-                                output = func(**args)
+                        size_value = max(int(s) for s in sizes.lower().split('x'))
+                    except:
+                        pass
+                icon_candidates.append((size_value, full_url))
 
-                        elif func_name == "get_stock_summary":
-                            with st.spinner("💸 Snatching the latest stock prices... 💰 Hold tight!"):
-                                output = func(**args)
-                                
-                        elif func_name == "store_memory":
-                            with st.spinner("💾 Storing memory..."):
-                                tags = args.get("tags")
-                                if isinstance(tags, str):
-                                    try:
-                                        tags = ast.literal_eval(tags)
-                                        if not isinstance(tags, list):
-                                            raise ValueError
-                                        args["tags"] = tags
-                                    except Exception:
-                                        st.warning(f"Invalid tags format: {tags}. Skipping store_memory.")
-                                        continue
-                                elif tags is not None and not isinstance(tags, list):
-                                    st.warning(f"Invalid tags format: {tags}. Skipping store_memory.")
-                                    
+        for link in soup.find_all("link", rel=lambda x: x and 'apple-touch-icon' in x.lower()):
+            href = link.get('href')
+            sizes = link.get('sizes')
+            if href:
+                full_url = urljoin(base_url, href)
+                size_value = 0
+                if sizes:
+                    try:
+                        size_value = max(int(s) for s in sizes.lower().split('x'))
+                    except:
+                        pass
+                icon_candidates.append((size_value, full_url))
 
-                                try:
-                                    output = func(**args)
+        if icon_candidates:
+            icon_candidates.sort(reverse=True)
+            return icon_candidates[0][1]
 
-                                    output_str = json.dumps(output, indent=2) if not isinstance(output, str) else output
+        og_image = soup.find("meta", property="og:image")
+        if og_image and og_image.get("content"):
+            return og_image["content"]
 
-                                    # Append tool response for AI context
-                                    initial_messages.append(response.message)
-                                    initial_messages.append({
-                                        'role': 'tool',
-                                        'name': func_name,
-                                        'content': output_str
-                                    })
-                                    
-                                except Exception as e:
-                                    st.error(f"Error executing `{func_name}`: {e}")
-                                    continue
-                                
-                        elif func_name == "search_memory":
-                            with st.spinner("🧠 Searching your memory..."):
-                                output = func(**args)
+        twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
+        if twitter_image and twitter_image.get("content"):
+            return twitter_image["content"]
 
-                                output_str = json.dumps(output, indent=2) if not isinstance(output, str) else output
+        parsed_url = urlparse(base_url)
+        favicon_url = f"{parsed_url.scheme}://{parsed_url.netloc}/favicon.ico"
+        fav_response = requests.head(favicon_url, headers=headers, timeout=5)
+        if fav_response.status_code == 200:
+            return favicon_url
 
-                                memory_messages.append(response.message)
-                                memory_messages.append({
-                                    'role': 'tool',
-                                    'name': func_name,
-                                    'content': output_str
-                                })
-                                print("insider call of seach memory", output_str)
-                                st.subheader("📤 Tool Output:")
-                                st.code(output_str, language="json")
-                                print("ffdd",memory_messages)
-                                st.write_stream(stream_ollama_response("llama3.2", memory_messages))
-                                print("donw wirh isndie call")
-                                continue
-                                # print(initial_messages)
-                        else:
-                            # For skip_tools or other cases, normal call without spinner
-                            output = func(**args)
+        domain = parsed_url.netloc
+        clearbit_url = f"https://logo.clearbit.com/{domain}"
+        return clearbit_url
 
-                    except Exception as e:
-                        st.error(f"Error executing `{func_name}`: {e}")
-                        continue
+    except requests.RequestException:
+        return None
 
-                    output_str = json.dumps(output, indent=2) if not isinstance(output, str) else output
+def search_and_scrape(query, max_results=5):
+    results_list = []
 
-                    # Tool response integration
-                    initial_messages.append(response.message)
-                    initial_messages.append({
-                        'role': 'tool',
-                        'name': func_name,
-                        'content': output_str
-                    })
-                    print("call2 ")
+    with DDGS() as ddgs:
+        results = ddgs.text(query, region='uk-en', safesearch='Off', max_results=max_results)
 
-                    st.subheader("🔧 Tool Used:")
-                    st.markdown(f"**{func_name}**")
+        for result in results:
+            url = result['href']
+            title = result['title']
 
-                    st.subheader("📤 Tool Output:")
-                    st.code(output_str, language="json")
+            parsed_url = urlparse(url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
 
-                    st.subheader("💬 Final Answer:")
-                    st.write_stream(stream_ollama_response("llama3.2", initial_messages))
-                                    
-                else:
-                    st.error(f"Function `{func_name}` not found.")
-        else:
-            st.subheader("💬 Answer:")
-            st.write_stream(response.message.content)
-            print("last call")
+            content = scrape_page(url)
+            favicon = get_best_logo_url(base_url)
+
+            results_list.append({
+                "title": title,
+                "url": url,
+                "favicon_url": favicon,
+                "content": content
+            })
+            
+    return results_list
+
+@st.dialog("📰 Search Sources")
+def show_sources():
+
+    st.markdown("""
+    <style>
+    a:hover {
+        color: #1e90ff !important;
+        text-decoration: underline !important;
+        cursor: pointer;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Number and display each result nicely
+    for i, res in enumerate(st.session_state.results, start=1):
+        with st.container():
+            cols = st.columns([0.3, 1, 11])
+            with cols[0]:
+                st.markdown(f"<div style='color: #888; font-weight: 600;'>{i}.</div>", unsafe_allow_html=True)
+            with cols[1]:
+                if res.get("favicon_url"):
+                    st.image(res["favicon_url"], width=28)
+            with cols[2]:
+                st.markdown(
+                    f"""
+                    <div style="margin-bottom: 0.4rem;">
+                        <a href="{res['url']}" target="_blank" style="text-decoration: none; font-weight: 600; font-size: 1.05rem; color: #fafafa;">
+                            {res['title']}
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                
+                snippet = res.get("content", "").strip().replace("\n", " ")
+                short = snippet[:200] + "..." if len(snippet) > 200 else snippet
+                st.markdown(
+                    f"""
+                    <div style="color: #ccc; font-size: 0.93rem; line-height: 1.5;">
+                        {short}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        st.divider()
+
+# --- Streamlit UI ---
+
+st.title("🔎 DuckDuckGo Search & Scraper with Favicons")
+
+query = st.text_input("Enter your search query:", value="who is Aditya hakani")
+max_results = st.slider("Number of results:", 1, 10, 5)
+icons_html=""
+if st.button("Search"):
+    with st.spinner("Searching and scraping..."):
+        results = search_and_scrape(query, max_results=max_results)
+        print(results)
+        st.markdown("""
+    <style>
+    .circle-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 55%;
+        object-fit: cover;
+        margin: 0 4px;
+        outline: 18px solid transparent;
+        vertical-align: middle;
+    }
+  
+    .dialog-favicon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #ddd;
+        margin-right: 12px;
+        vertical-align: middle;
+        transition: background-color 1s ease;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+        icons_html = "".join(
+        f'<img src="{res["favicon_url"]}" class="circle-icon" style="margin-right:-12px;" alt="icon"/>' 
+        for res in results[:3] if res.get("favicon_url")
+    )
+    st.success(f"Found {len(results)} results")
+    st.session_state.results = results  # store results
+
+if "results" in st.session_state and st.session_state.results:
+    st.markdown(icons_html, unsafe_allow_html=True)
+    
+    if st.button("Show All Sources"):
+        show_sources()
 
 
+  
+    for res in results:
+        cols = st.columns([1, 11])
+        if res['favicon_url']:
+            with cols[0]:
+                st.image(res['favicon_url'], width=32)
+        with cols[1]:
+            st.markdown(f"### [{res['title']}]({res['url']})")
+            description = res['content'][:300].replace('\n', ' ') + "..."
+            st.write(description)
 
+    st.markdown("---")
 
+    # # CSS for circular favicons in button and dialog
+   
+    # icons_html = "".join(
+    #     f'<img src="{res["favicon_url"]}" class="circle-icon" style="margin-right:-12px;" alt="icon"/>' 
+    #     for res in results[:3] if res.get("favicon_url")
+    # )
+    # # Show centered button with favicons inline
+    # st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
+    # if st.button("📚 View All Sources"):
+    #     show_sources_dialog = st.dialog("🧾 All Sources", width="large")(lambda: None)  # create dialog function dynamically
+
+    #     def show_sources_dialog():
+    #         for src in st.session_state.results:
+    #             cols = st.columns([1, 11])
+    #             if src.get("favicon_url"):
+    #                 with cols[0]:
+    #                     st.image(src["favicon_url"], width=24, clamp=True, use_column_width=False, output_format="PNG", classes="dialog-favicon")
+    #             with cols[1]:
+    #                 st.markdown(f"### [{src['title']}]({src['url']})")
+    #                 st.write(src["content"][:600].replace('\n', ' ') + "...")
+    #             st.markdown("---")
+
+    #     show_sources_dialog()
+
+    # # Render the button with icons manually using HTML + JS (disabled click, fallback to st.button above)
+    # st.markdown(f"""
+    # <button class="sources-button" type="button" disabled>
+    # <span style="margin-right: 8px;" class="icon-wrapper">{icons_html}</span> Sources
+    # </button>
+    # """, unsafe_allow_html=True)
+    # st.markdown('</div>', unsafe_allow_html=True)

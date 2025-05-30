@@ -5,6 +5,7 @@ import time
 import random
 import logging
 import json
+from urllib.parse import urlparse, urljoin
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -14,6 +15,16 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
 ]
 
+
+def get_url_logo(base_url):
+    try:
+        parsed_url = urlparse(base_url)
+        domain = parsed_url.netloc
+        clearbit_url = f"https://logo.clearbit.com/{domain}"
+        return clearbit_url
+    except Exception:
+        return None
+    
 def search_and_scrape(query, max_results=5, retries=3):
     def get_random_user_agent():
         return random.choice(USER_AGENTS)
@@ -50,11 +61,12 @@ def search_and_scrape(query, max_results=5, retries=3):
             url = result['href']
             title = result['title']
             content = scrape_page(url)
-
+            favicon = get_url_logo(url)
             results_list.append({
                 "title": title,
                 "url": url,
-                "content": content
+                "content": content,
+                "favicon_url": favicon
             })
 
             # Optional polite delay

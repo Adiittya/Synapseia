@@ -7,63 +7,20 @@ from datetime import datetime
 from dateutil import parser
 import json
 
-# ui_components/memory_manager.py
 
-import streamlit as st
-from streamlit_timeline import timeline
-from tools.custom_memories import get_all_memories, delete_memory_by_id
-from datetime import datetime
-from dateutil import parser
-import json
 
+def darken_color(hex_color, amount=0.1):
+    """
+    Darken the given hex color by the given amount (0 to 1).
+    """
+    hex_color = hex_color.lstrip('#')
+    rgb = [int(hex_color[i:i+2], 16) for i in (0, 2, 4)]
+    darkened = [max(0, int(c * (1 - amount))) for c in rgb]
+    return '#{:02x}{:02x}{:02x}'.format(*darkened)
 
 @st.dialog("📂 Memory Timeline")
 def memory_manager_dialog():
-    # CSS Styling for delete buttons and confirmation popup
-    st.markdown(
-        """
-        <style>
-        .trash-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #c0392b;
-            font-size: 1.2rem;
-            padding: 0 5px;
-            transition: color 0.3s ease;
-        }
-        .trash-btn:hover {
-            color: #e74c3c;
-        }
-        .confirm-dialog {
-            background-color: #001F3F;
-            color: white;
-            padding: 1rem;
-            border-radius: 8px;
-            max-width: 320px;
-            margin: 1rem auto;
-            text-align: center;
-        }
-        .confirm-dialog button {
-            margin: 0.5rem;
-            padding: 6px 14px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        .confirm-yes {
-            background-color: #c0392b;
-            color: white;
-        }
-        .confirm-no {
-            background-color: #34495e;
-            color: white;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+
 
     all_memories = get_all_memories()
 
@@ -73,10 +30,12 @@ def memory_manager_dialog():
 
     if "confirm_delete_id" not in st.session_state:
         st.session_state.confirm_delete_id = None
-
+        
+    base_color = "#1e1e1e"
+    num_memories = len(all_memories)
     # Timeline section
     events = []
-    for memory in all_memories:
+    for idx, memory in enumerate(all_memories):
         doc = memory.get("document", "Unknown memory")
         meta = memory.get("metadata", {})
         memory_id = memory.get("id")
@@ -86,7 +45,12 @@ def memory_manager_dialog():
             dt = parser.parse(raw_timestamp)
         except Exception:
             dt = datetime.now()
+            
+        dark_factor = idx / max(num_memories - 1, 1) * 0.6
+        event_color = darken_color(base_color, dark_factor)
 
+    
+        
         events.append({
             "start_date": {
                 "year": dt.year,
@@ -100,6 +64,9 @@ def memory_manager_dialog():
                 "text": f"{doc}<br><br><b>🕒 Timestamp:</b> {dt.strftime('%Y-%m-%d %H:%M')}"
             },
             "unique_id": memory_id,
+                       "background": {
+            "color": event_color  # dark gray background
+    }
         })
 
     timeline_data = {
@@ -107,7 +74,10 @@ def memory_manager_dialog():
             "text": {
                 "headline": "🧠 Your Memory Timeline",
                 "text": "Visualize, scroll, and manage your memories."
-            }
+            },
+             "background": {
+        "color": "#1e1e1e"  # dark gray background
+    }
         },
         "events": events
     }
@@ -120,6 +90,7 @@ def memory_manager_dialog():
     st.subheader("🗃 Manage Individual Memories")
 
     st.markdown('<div class="memory-list-container">', unsafe_allow_html=True)
+    
     for idx, memory in enumerate(all_memories):
         doc = memory.get("document", "Unknown memory")
         meta = memory.get("metadata", {})
@@ -146,10 +117,12 @@ def memory_manager_dialog():
                     if st.button("Yes, delete", key=f"confirm_delete_{memory_id}"):
                         success = delete_memory_by_id(memory_id)
                         if success:
+                            
                             st.success("Memory deleted.")
                         else:
                             st.error("Failed to delete memory.")
                         st.rerun()
+                        return f"Memory deleted with id {memory_id}"
                 with cols[1]:
                     if st.button("Cancel", key=f"cancel_delete_{memory_id}"):
                         # Just close expander by rerunning or do nothing
