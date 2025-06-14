@@ -10,13 +10,12 @@ from tool_schema import tools_schema
 from tool_schema import tools_prompt
 import ast
 from ui_components.sources_modal import show_sources
-global func_name
-global sources_favicon
-search_and_scrape_called = False
+import streamlit.components.v1 as components
+from ui_components.stock_graph_generation import generate_multiple_charts
 
 # ------------------------ SETUP ------------------------
 
-available_functions = {
+available_functions = { 
     'search_and_scrape': search_and_scrape,
     'skip_tools': lambda: "Answer provided directly by AI without external tools.",
     'get_stock_summary': get_stock_summary,
@@ -38,6 +37,7 @@ emoji_map = {
 def stream_ollama_response(model: str, messages: list):
     for chunk in chat(model, messages=messages, stream=True):
         if chunk and getattr(chunk, "message", None):
+            st.session_state.ai_answer += chunk.message.content
             yield chunk.message.content
 
 # ------------------------ UI SETUP ------------------------
@@ -56,25 +56,26 @@ if "ai_answer" not in st.session_state:
     st.session_state.ai_answer = ""  # to store final AI answer text
 if "sources_favicon" not in st.session_state:
     st.session_state.sources_favicon = ""
-answer_placeholder = st.empty()
+if "ask_now" not in st.session_state:
+    st.session_state.ask_now = False
+if "show_sources_clicked" not in st.session_state:
+    st.session_state.show_sources_clicked = False
+if "last_query_ran" not in st.session_state:
+    st.session_state.last_query_ran = ""
+if "charts_generated" not in st.session_state:
+    st.session_state.charts_generated = False
+if "chart_symbols" not in st.session_state:
+    st.session_state.chart_symbols = []
+if "tool_expander" not in st.session_state:
+    st.session_state.charts_generated = False
+    
+    
 # ------------------------ UI CONFIG ------------------------
 
-st.set_page_config(page_title="📊 Adi’s Stock & Web Assistant", layout="wide")
+st.set_page_config(page_title="SYNAPSEIA", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    .block-container {
-        padding-top: 0rem !important;
-    }
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-st.title("📊 Adi’s Stock & Web Assistant")
-st.markdown("Your personal AI for market trends, insights, and memory-driven Q&A.")
+st.title("Project SYNAPSEIA")
+st.markdown("Stock & Web Assistant")
 
 col1, col2 = st.columns([1, 5])
 if col1.button("🗃️ Manage Memory"):
@@ -98,26 +99,37 @@ hide_streamlit_style = """
 
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 suggestions = [
-    "What's the stock price of RELIANCE?",
-    "Show me latest news Tata motors.",
+    "What stock price of RELIANCE and TATAMOTORS?",
+    "Show me latest news of tata motors.",
     "What's the current weather in Mumbai?",
-    "Compare and do analysis of kotak and hdfc bank with latest price in table format"
+    "Spill the latest tea about Wizard liz controversy 😋"
 ]
 
 cols = st.columns(len(suggestions))
 for i, suggestion in enumerate(suggestions):
     if cols[i].button(suggestion):
         st.session_state.query = suggestion
-        st.rerun()
+        st.session_state.ask_now = True 
 
 # ------------------------ INPUT QUERY ------------------------
     
 query = st.text_input("📝 Ask a question:", value=st.session_state.query, key="query")
 print(query)
+output_rendered = False
+
 # ------------------------ MAIN LOGIC ------------------------
 
-if st.button("Ask") and query:
+ask_button_pressed = st.button("Ask")
+
+if (ask_button_pressed or st.session_state.get("ask_now")) and query and query != st.session_state.last_query_ran:
+
+    st.session_state.ask_now = False  # Reset after use
     st.session_state.ai_answer = ""
+    st.session_state.output = None
+    st.session_state.func_name = None
+    st.session_state.search_and_scrape_called = False
+    st.session_state.last_query_ran = query
+
     with st.spinner("Thinking..."):
         initial_messages = [
             {'role': 'system', 'content': tools_prompt.tool_system_prompt},
@@ -141,7 +153,7 @@ if st.button("Ask") and query:
             {
                 'role': 'user',
                 'content': query
-            }
+            } 
         ]
 
         tools = [tools_schema.web_search_tool, tools_schema.skip_tool, tools_schema.stock_fetch_tool, tools_schema.store_memory_tool, tools_schema.search_memory_tool]
@@ -209,6 +221,7 @@ if st.button("Ask") and query:
                 try:
                     with st.status(f"{emoji} Calling `{func_name}` and refining answer with AI...") as status:
                         status.write(f"Step 1: Calling `{func_name}` tool...")
+                        st.session_state.tool_expander = True
                         output = func(**args)
                         
                         st.session_state.output = output
@@ -265,6 +278,8 @@ if st.button("Ask") and query:
                             ]
 
                         elif func_name == "get_stock_summary":
+                        
+                            
                             refinement_messages = initial_messages + [{
                                 'role': 'tool',
                                 'name': func_name,
@@ -298,22 +313,108 @@ if st.button("Ask") and query:
                     # Display tool usage and output outside the status block
                     st.subheader(f"🔧 Tool Used: `{func_name}`")
                     st.code(output_str, language="json")
-
+                
+                    if func_name == "get_stock_summary":
+                        st.info("📊 Calling `generate_multiple_charts`...")
+                        generate_multiple_charts(stock_symbols)
+                        st.session_state.charts_generated = True
+                        st.session_state.chart_symbols = stock_symbols 
+                        print("hiiiii", stock_symbols)
+                          
                     st.subheader("💬 Final Answer:")
-                    st.write_stream(stream_ollama_response("llama3.2", refinement_messages))
-                    print(func_name,"funnnnnnnnnn")
+                    st.json(refinement_messages)
+                    st.write_stream(stream_ollama_response("llama3.2", refinement_messages))  # stream live
+                    
+                    output_rendered = True
+                    
+
+
                         
                 except Exception as e:
                     st.error(f"Error executing `{func_name}`: {e}")
                     continue
-                
+
+# if st.session_state.tool_expander:
+#     with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
+#         status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
+    
+
+
 if st.session_state.search_and_scrape_called and st.session_state.get('output'):
-    print("outputtttttttt",st.session_state['output'])
-    if st.button("Show All Sources"):
-        show_sources(st.session_state['output'])
-        
-        
-        
-        
-        
-        
+    if "show_sources_clicked" not in st.session_state:
+        st.session_state.show_sources_clicked = False
+
+    # Use a container to group answer and button so they render together
+    with st.container():
+        if not output_rendered:
+            # Show fallback display on rerun
+            if st.session_state.output and st.session_state.ai_answer:
+                output_str = json.dumps(st.session_state.output, indent=2) \
+                    if not isinstance(st.session_state.output, str) else st.session_state.output
+                st.code(output_str, language="json")
+
+                st.subheader("💬 Final Answer:")
+                st.markdown(st.session_state.ai_answer)
+
+        # Show the button always when search_and_scrape_called, below the answer
+        if st.session_state.sources_favicon:
+            st.markdown("""
+            <style>
+            .circle-icon {
+                width: 25px;
+                height: 25px;
+                border-radius: 50%;
+                object-fit: cover;
+                margin: 0 6px 0 0;  /* Slightly less right margin */
+                vertical-align: middle;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            .sources-button-container {
+                display: flex;
+                align-items: center;
+                gap: 4px;  /* Reduce spacing between icons */
+                margin-top: 8px;  /* Slightly less top margin */
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Use tighter column ratio to bring items closer
+            container = st.container()
+            with container:
+                col1, col2 = st.columns([0.9, 15])  # Tighter gap: increase icon space, reduce button space
+
+                with col1:
+                    st.markdown(
+                        f'<div class="sources-button-container">{st.session_state.sources_favicon}</div>',
+                        unsafe_allow_html=True
+                    )
+                with col2:
+                    if st.button("Sources", type="tertiary"):
+                        st.session_state.show_sources_clicked = True
+
+if (
+    st.session_state.get("charts_generated") 
+    and st.session_state.get("chart_symbols") 
+    and st.session_state.get("func_name") == "get_stock_summary"
+):
+    if not output_rendered:
+        if st.session_state.output and st.session_state.ai_answer:
+            st.subheader(f"🔧 Tool Used: `{st.session_state.func_name}`")
+            output_str = (
+                    json.dumps(st.session_state.output, indent=2)
+                    if not isinstance(st.session_state.output, str)
+                    else st.session_state.output
+                )
+            st.code(output_str, language="json")
+        generate_multiple_charts(st.session_state.chart_symbols)
+
+    # 💡 Make sure output isn't rendered more than once
+        st.subheader("💬 Final Answer:")
+        st.markdown(st.session_state.ai_answer)
+
+if st.session_state.show_sources_clicked:
+    show_sources(st.session_state['output'])
+    st.session_state.show_sources_clicked = False
+
+

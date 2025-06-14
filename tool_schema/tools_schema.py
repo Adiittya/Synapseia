@@ -6,8 +6,8 @@ store_memory_tool = {
     "function": {
         "name": "store_memory",
         "description": (
-            "Stores memory text into the database with exactly two tags as a list of strings, "
-            "like ['color', 'red']."
+            "Explicitly saves a concise, rephrased memory entry only when the user clearly instructs to remember or store something—"
+            "such as preferences, goals, or important facts."
         ),
         "parameters": {
             "type": "object",
@@ -15,7 +15,10 @@ store_memory_tool = {
             "properties": {
                 "text": {
                     "type": "string",
-                    "description": "The memory content text to store."
+                    "description": (
+                        "The content to remember, rephrased in clear and grammatically correct English. "
+                        "It must be user-initiated, intentional, and directly relevant—NOT auto-summarized from long or general user inputs."
+                    )
                 },
                 "tags": {
                     "type": "array",
@@ -24,28 +27,39 @@ store_memory_tool = {
                     "items": {
                         "type": "string"
                     },
-                    "description": "List of exactly two tag strings, e.g., ['color', 'red']"
+                    "description": (
+                        "A list of exactly two lowercase tags describing the memory topic and category. "
+                        "Example: ['goal', 'investing'] or ['preference', 'fmcg']. "
+                        "Must be meaningful, short, and validated before storing."
+                    )
                 }
             }
         }
     }
 }
 
+
 #tool for retriving user preference / memories
-search_memory_tool= {
+search_memory_tool = {
     "type": "function",
     "function": {
         "name": "search_memory",
-        "description": "Searches stored memories semantically.",
+        "description": (
+            "Performs a semantic search over stored memories to retrieve relevant entries "
+            "based on the natural language query provided."
+        ),
         "parameters": {
             "type": "object",
+            "required": ["query"],
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The natural language search query.",
+                    "description": (
+                        "A natural language search query used to find relevant memories. "
+                        "The query should be a clear and concise description of what is being searched."
+                    )
                 }
-            },
-            "required": ["query"]
+            }
         }
     }
 }
@@ -58,10 +72,11 @@ stock_fetch_tool = {
     "function": {
         "name": "get_stock_summary",
         "description": (
-            "Fetch the latest stock quotes and details for NSE stock symbols. "
-            "Return stock symbols ONLY as a list of strings ending with '.NS', "
-            "without any extra info or names. "
-            "Example: ['RELIANCE.NS', 'TATASTEEL.NS', 'INFY.NS']"
+            "Fetch the latest stock quotes and relevant details for NSE stock symbols. "
+            "Return ONLY a list of NSE stock symbols ending with '.NS', "
+            "without any additional data such as company names or prices. "
+            "The symbols can be any valid NSE ticker. "
+            "Example output: ['ABC.NS', 'XYZ.NS', 'INFY.NS']"
         ),
         "parameters": {
             "type": "object",
@@ -71,12 +86,13 @@ stock_fetch_tool = {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "pattern": "^[A-Z]+\\.NS$"
+                        "pattern": "^[A-Z0-9]+\\.NS$"
                     },
                     "description": (
-                        "List of NSE stock symbols ending with '.NS'. "
-                        "Example: ['RELIANCE.NS', 'TATASTEEL.NS'] "
-                        "Do NOT pass a single comma-separated string."
+                        "A list of valid NSE stock symbols, each ending with '.NS'. "
+                        "Symbols may include uppercase letters and digits. "
+                        "Example: ['ABC.NS', 'XYZ123.NS']. "
+                        "Each symbol must be a separate array element, not a comma-separated string."
                     )
                 }
             }
@@ -84,14 +100,20 @@ stock_fetch_tool = {
     }
 }
 
+
 # Tool to perform web search and scrape content (for non-stock queries)
 web_search_tool = {
     "type": "function",
     "function": {
         "name": "search_and_scrape",
         "description": (
-            "Search the internet with a query and scrape top results' titles, URLs, and snippets. "
-            "Use for general info, news, weather, or topics unrelated to stocks."
+            "Performs an internet search using the given query and extracts key information "
+            "from the top results, including titles, URLs, and summary snippets. "
+            "This tool is intended for general information retrieval such as news, weather, "
+            "and topics unrelated to stock prices or stock symbol queries.\n\n"
+            "IMPORTANT: If the AI does not have sufficient knowledge about a recent event, controversy, "
+            "or any topic, it must use this tool to perform a search instead of guessing or providing inaccurate information. "
+            "The AI should clearly indicate when it relies on search results."
         ),
         "parameters": {
             "type": "object",
@@ -99,7 +121,9 @@ web_search_tool = {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query string for DuckDuckGo search and scraping."
+                    "description": (
+                        "A clear and specific natural language query string for DuckDuckGo search."
+                    )
                 }
             }
         }
@@ -112,11 +136,17 @@ skip_tool = {
     "function": {
         "name": "skip_tools",
         "description": (
-            "Indicate that the question can be answered using general knowledge without calling any external tool."
+            "Use this tool ONLY when the user's request can be fully addressed using internal model knowledge, static context, or summarization—"
+            "without the need for any external tools, APIs, scraping, memory access, or stock-related functions. "
+            "This includes casual conversations, greetings, small talk, basic factual queries, or general knowledge questions."
         ),
         "parameters": {
             "type": "object",
-            "properties": {}
+            "properties": {},
+            "description": (
+                "This tool does not accept any parameters. Use it strictly when the query can be resolved confidently "
+                "without invoking external tool functions, relying only on static or internal model knowledge."
+            )
         }
     }
 }
