@@ -171,7 +171,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                 args = tool.function.arguments if isinstance(tool.function.arguments, dict) else {}
 
                 emoji = emoji_map.get(func_name, "🔧")
-                st.info(f"{emoji} AI selected function: `{func_name}` with args {args}")
+                # st.info(f"{emoji} AI selected function: `{func_name}` with args {args}")
 
                 # Validate and process inputs with if-else for each tool
                 if func_name == "search_and_scrape":
@@ -247,9 +247,12 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 {
                                     'role': 'system',
                                     'content': (
-                                        "You are a helpful AI assistant. Your role is to remember and refer to what the user has previously told you. "
-                                        "The context of the conversation may include entries from memory with the role 'tool', and you should use that information "
-                                        "to respond appropriately."
+                                                "You are a perceptive, emotionally intelligent, and highly context-aware AI assistant. "
+                                                "Your job is not just to answer questions, but to understand the user's journey, preferences, tone, and goals across time. "
+                                                "Leverage all remembered information—including past inputs, emotional states, projects, and tool usage—to deliver responses that feel genuinely connected and personalized. "
+                                                "You may recall and reference relevant context naturally and subtly—only when it meaningfully adds value. "
+                                                "Avoid generic replies. Be thoughtful, engaging, and practical. Balance emotional support with directness, especially when the user is struggling or venting. "
+                                                "You are not just a tool—they see you as a thinking partner. Help them feel seen, not just served."
                                     )
                                 },
                                 {
@@ -273,18 +276,25 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 },
                                 {
                                     'role': 'user',
-                                    'content': f"The user's memory has been updated with: {output_str}"
+                                    'content':   f"User memory update attempted with: {args}. Memory update status: {output_str}. "
+                                                "If the update was successful, respond in a concise, warm, and natural tone — acknowledge the info and confirm that it has been remembered. "
+                                                "Avoid robotic or overly short replies like 'Got it'. "
+                                                "If the update failed, respond politely that the info couldn't be saved."
                                 }
                             ]
 
                         elif func_name == "get_stock_summary":
                         
                             
-                            refinement_messages = initial_messages + [{
-                                'role': 'tool',
-                                'name': func_name,
-                                'content': output_str
-                            }]
+                            refinement_messages = initial_messages + [
+                                {
+                                    'role': 'tool',
+                                    'name': func_name,
+                                    'content': output_str 
+                                },
+                        
+                            ]
+
 
                         elif func_name == "search_and_scrape":
                             refinement_messages = initial_messages + [{
@@ -309,20 +319,23 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 'content': output_str
                             }]
 
-        
-                    # Display tool usage and output outside the status block
-                    st.subheader(f"🔧 Tool Used: `{func_name}`")
-                    st.code(output_str, language="json")
+                # Tool Usage Display
+                    with st.container():
+                
+                        with st.expander("📤 Output from Tool", expanded=False):
+                            st.markdown("#### 📄 Response")
+                            st.json(output_str if isinstance(output_str, (dict, list)) else {"output": output_str})
+                    
                 
                     if func_name == "get_stock_summary":
-                        st.info("📊 Calling `generate_multiple_charts`...")
+        
                         generate_multiple_charts(stock_symbols)
                         st.session_state.charts_generated = True
                         st.session_state.chart_symbols = stock_symbols 
                         print("hiiiii", stock_symbols)
                           
                     st.subheader("💬 Final Answer:")
-                    st.json(refinement_messages)
+                    st.json(refinement_messages, expanded= False)
                     st.write_stream(stream_ollama_response("llama3.2", refinement_messages))  # stream live
                     
                     output_rendered = True
@@ -334,11 +347,6 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                     st.error(f"Error executing `{func_name}`: {e}")
                     continue
 
-# if st.session_state.tool_expander:
-#     with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
-#         status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
-    
-
 
 if st.session_state.search_and_scrape_called and st.session_state.get('output'):
     if "show_sources_clicked" not in st.session_state:
@@ -349,9 +357,20 @@ if st.session_state.search_and_scrape_called and st.session_state.get('output'):
         if not output_rendered:
             # Show fallback display on rerun
             if st.session_state.output and st.session_state.ai_answer:
-                output_str = json.dumps(st.session_state.output, indent=2) \
-                    if not isinstance(st.session_state.output, str) else st.session_state.output
-                st.code(output_str, language="json")
+                output_str = (
+                    json.dumps(st.session_state.output, indent=2)
+                    if not isinstance(st.session_state.output, str)
+                    else st.session_state.output
+                )
+            
+                with st.container():
+                    with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
+                        status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
+                        status.write("Step 2: Tool call completed.")
+                    
+                    with st.expander("📤 Output from Tool", expanded=False):
+                        st.markdown("#### 📄 Response")
+                        st.json(output_str if isinstance(output_str, (dict, list)) else {"output": output_str})
 
                 st.subheader("💬 Final Answer:")
                 st.markdown(st.session_state.ai_answer)
@@ -400,13 +419,22 @@ if (
 ):
     if not output_rendered:
         if st.session_state.output and st.session_state.ai_answer:
-            st.subheader(f"🔧 Tool Used: `{st.session_state.func_name}`")
+        
             output_str = (
                     json.dumps(st.session_state.output, indent=2)
                     if not isinstance(st.session_state.output, str)
                     else st.session_state.output
                 )
-            st.code(output_str, language="json")
+            
+            with st.container():
+                with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
+                    status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
+                    status.write("Step 2: Tool call completed.")
+                
+                with st.expander("📤 Output from Tool", expanded=False):
+                    st.markdown("#### 📄 Response")
+                    st.json(output_str if isinstance(output_str, (dict, list)) else {"output": output_str})
+                    
         generate_multiple_charts(st.session_state.chart_symbols)
 
     # 💡 Make sure output isn't rendered more than once

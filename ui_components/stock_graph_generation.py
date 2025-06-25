@@ -205,7 +205,7 @@ def build_chart_options(x_data, close_data, dividend_data, mark_areas):
 
 
 def generate_multiple_charts(stock_symbols: list):
-    print("callllllledd")
+
     if isinstance(stock_symbols, str):
         try:
             stock_symbols = ast.literal_eval(stock_symbols)
@@ -225,13 +225,10 @@ def generate_multiple_charts(stock_symbols: list):
         radio_key = f"stock_select_radio_{'_'.join(stock_symbols)}"
         selected_stock = st.radio("📌 Select a Stock", stock_symbols, key=radio_key)
 
-        st.write(f"📦 Selected stock: `{selected_stock}`")
-        
+        # st.write(f"📦 Selected stock: `{selected_stock}`")
         stock_data, dates = return_historical_data(months=12, stock_symbol=selected_stock)
-        st.write("✅ Stock data fetched")
         
         ticker_data = yf.Ticker(selected_stock)
-        st.write("✅ Ticker data fetched")
         
         stock_data.index = pd.to_datetime(stock_data.index, errors='coerce')
         x_data = stock_data.index.strftime('%Y-%m-%d').tolist()
@@ -248,14 +245,24 @@ def generate_multiple_charts(stock_symbols: list):
         earnings_dates = quaterly_earnings.index.strftime('%Y-%m-%d').tolist()
         earnings_values = quaterly_earnings.tolist()
         mark_areas = build_earnings_mark_areas(x_data, earnings_dates, earnings_values)
+        st.sidebar.info("""
+🧠 **What You See:**
+- 📊 Price trend over past 1 year
+- 📌 Key earnings and dividend events
+- 📈 Financial ratios like P/E, ROE, D/E
 
+Use these tools to make better stock decisions.
+
+🛠️ Powered by SYNAPSEIA
+""")
         st.header(f"📈 {selected_stock} Price Trend with Earnings & Dividends")
+        st.caption("This chart includes dividend payouts (🟡), earnings highlights (🟩), and major stock moves.")
         option = build_chart_options(x_data, close_data, dividend_data, mark_areas)
-        st_echarts(options=option, height="350px", width="60%")
+        st_echarts(options=option, height="500px", width="100%")
 
         ticker_info = ticker_data.info
         key_ratios = get_key_ratios(ticker_info)
-        st.subheader("📊 Key Financial Ratios")
+        st.subheader("📊 Key Financial Metrics (Live Extract)")
         st.json(key_ratios)
 
     except Exception as e:

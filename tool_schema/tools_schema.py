@@ -136,17 +136,15 @@ skip_tool = {
     "function": {
         "name": "skip_tools",
         "description": (
-            "Use this tool ONLY when the user's request can be fully addressed using internal model knowledge, static context, or summarization—"
+            "Use this tool ONLY when the user's request can be fully addressed using internal model knowledge, static context, or summarization -"
             "without the need for any external tools, APIs, scraping, memory access, or stock-related functions. "
             "This includes casual conversations, greetings, small talk, basic factual queries, or general knowledge questions."
+            "This tool does not accept any parameters. Use it strictly when the query can be resolved confidently"
         ),
         "parameters": {
             "type": "object",
             "properties": {},
-            "description": (
-                "This tool does not accept any parameters. Use it strictly when the query can be resolved confidently "
-                "without invoking external tool functions, relying only on static or internal model knowledge."
-            )
+           
         }
     }
 }
