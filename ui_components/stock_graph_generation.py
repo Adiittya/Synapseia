@@ -32,6 +32,8 @@ def return_historical_data(months: int, stock_symbol: str):
         if not stock_data.empty:
             stock_data.index = pd.to_datetime(stock_data.index, errors='coerce')
             stock_data = stock_data.dropna(subset=["Close"])
+            print(stock_data[stock_data['Dividends'] > 0])
+
         else:
             print(f"[⚠️] No data fetched for {stock_symbol}")
     except Exception as e:
@@ -166,40 +168,41 @@ def build_chart_options(x_data, close_data, dividend_data, mark_areas):
                 },
                 "tooltip": {"show": False}
             },
-            {
-                "name": "Dividend",
-                "type": "scatter",
-                "symbol": "pin",
-                "symbolSize": 25,
-                "z": 10,
-                "data": [
-                    {
-                        "value": [x_data[i], close_data[i]],
-                        "itemStyle": {
-                            "color": "#FFD700",
-                            "borderColor": "#000",
-                            "borderWidth": 1
-                        },
-                        "tooltip": {
-                            "formatter": f"<b>{x_data[i]}</b><br/>Close Price: ₹{close_data[i]:.2f}<br/>Dividend: ₹{dividend_data[i]:.2f}"
-                        },
-                        "label": {
-                            "show": True,
-                            "position": "top",
-                            "formatter": f"₹{dividend_data[i]:.2f}",
-                            "color": "#333",
-                            "fontSize": 10,
-                            "backgroundColor": "#fff",
-                            "padding": 4,
-                            "borderRadius": 5
-                        }
-                    }
-                    for i in range(len(dividend_data)) if dividend_data[i] > 0
-                ],
-                "tooltip": {
-                    "trigger": "item"
-                }
+           {
+    "name": "Dividend",
+    "type": "scatter",
+    "symbol": "pin",
+    "symbolSize": 25,
+    "z": 10,
+    "data": [
+        {
+            "value": [date_str, row["Close"]],
+            "itemStyle": {
+                "color": "#FFD700",
+                "borderColor": "#000",
+                "borderWidth": 1
+            },
+            "tooltip": {
+                "formatter": f"<b>{date_str}</b><br/>Close Price: ₹{row['Close']:.2f}<br/>Dividend: ₹{row['Dividends']:.2f}"
+            },
+            "label": {
+                "show": True,
+                "position": "top",
+                "formatter": f"₹{row['Dividends']:.2f}",
+                "color": "#333",
+                "fontSize": 10,
+                "backgroundColor": "#fff",
+                "padding": 4,
+                "borderRadius": 5
             }
+        }
+        for date_str, row in dividend_data.iterrows()
+    ],
+    "tooltip": {
+        "trigger": "item"
+    }
+}
+
         ]
     }
 
@@ -233,7 +236,10 @@ def generate_multiple_charts(stock_symbols: list):
         stock_data.index = pd.to_datetime(stock_data.index, errors='coerce')
         x_data = stock_data.index.strftime('%Y-%m-%d').tolist()
         close_data = stock_data['Close'].squeeze().fillna(method='ffill').round(2).tolist()
-        dividend_data = stock_data['Dividends'].squeeze().fillna(0).tolist()
+        # dividend_data = stock_data['Dividends'].squeeze().fillna(0).tolist()
+        dividend_data = stock_data[stock_data['Dividends'] > 0][['Dividends', 'Close']].copy()
+        dividend_data.index = dividend_data.index.strftime('%Y-%m-%d')
+    
 
         today_str = date.today().strftime('%Y-%m-%d')
         if x_data[-1] != today_str:

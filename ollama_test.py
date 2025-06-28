@@ -106,11 +106,3 @@
 
 # st.title("Main App Content Here")
 # st.write("Your Streamlit app has loaded successfully!")
-
-from ui_components.stock_graph_generation import generate_multiple_charts
-stock_list = ['TATAMOTORS.NS', 'INFY.NS', 'RELIANCE.NS', 'ICICIBANK.NS']
-generate_multiple_charts(stock_list)
-
-
-import ollama
-ollama.chat(keep_alive=)
