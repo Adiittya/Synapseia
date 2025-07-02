@@ -113,7 +113,13 @@ for i, suggestion in enumerate(suggestions):
 
 # ------------------------ INPUT QUERY ------------------------
     
-query = st.text_input("📝 Ask a question:", value=st.session_state.query, key="query")
+query = st.text_area(
+    "📝 Ask a question:",
+    value=st.session_state.query,
+    height=68,  # adjust to desired size
+    key="query"
+)
+
 print(query)
 output_rendered = False
 
@@ -172,8 +178,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
 
                 emoji = emoji_map.get(func_name, "🔧")
                 # st.info(f"{emoji} AI selected function: `{func_name}` with args {args}")
-
-                # Validate and process inputs with if-else for each tool
+# -------------------------- Validate and process inputs with if-else for each tool-----------------------------------------------------------------
                 if func_name == "search_and_scrape":
                     if not args.get('query', '').strip():
                         st.warning("Empty query passed to search_and_scrape tool. Skipping.")
@@ -210,6 +215,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                 else:
                     # You can add other tool-specific validations here if needed
                     pass
+# -------------------------- End of validatation of tools process inputs ------------------------------------------------------------------
 
                 # Check if function is available
                 func = available_functions.get(func_name)
@@ -284,15 +290,22 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                             ]
 
                         elif func_name == "get_stock_summary":
-                        
-                            
-                            refinement_messages = initial_messages + [
+                            refinement_messages = [
+                                {
+                                    'role': 'system',
+                                    'content': (
+                                        "You are a professional AI financial assistant that provides answers to user queries. You have the latest stock price data fetched by the tool. Provide current price and percent change by default. When the user asks for a comparison between stocks, include all ratios (market cap, PE ratio, dividend yield, etc.) in the comparison table. Also, fulfill any other requests or questions in the user’s query. Briefly mention that a graph has been provided showing the past year price trend with dividends and earnings events. If data could not be fetched, inform the user politely. Avoid disclaimers, notes, or additional suggestions unless asked. All data provided is up-to-date."
+                                    )
+                                },
+                                 {
+                                    'role': 'user',
+                                    'content': query
+                                },
+                                
                                 {
                                     'role': 'tool',
-                                    'name': func_name,
-                                    'content': output_str 
-                                },
-                        
+                                    'content': output_str
+                                }
                             ]
 
 
