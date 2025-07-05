@@ -8,8 +8,41 @@ import streamlit as st
 from concurrent.futures import ThreadPoolExecutor
 import ollama
 import time
+from collections import defaultdict
 
 # --- Utility: Check Ollama Running ---
+
+from collections import defaultdict
+import os
+
+def generate_folder_summary(paths):
+    grouped = defaultdict(lambda: {"files": [], "folders": set()})
+    
+    for path in paths:
+        parts = path.split("/")
+        for i in range(1, len(parts)):
+            parent = "/".join(parts[:i])
+            current = parts[i]
+            if i == len(parts) - 1:
+                if "." in current:  # file
+                    grouped[parent]["files"].append(current)
+                else:  # folder with no trailing file (unlikely)
+                    grouped[parent]["folders"].add(current)
+            else:
+                grouped[parent]["folders"].add(current)
+    
+    # Build lines in readable form
+    lines = []
+    for folder in sorted(grouped):
+        items = []
+        if grouped[folder]["files"]:
+            items.extend(sorted(grouped[folder]["files"]))
+        if grouped[folder]["folders"]:
+            items.extend(sorted(f + "/" for f in grouped[folder]["folders"]))
+        if items:
+            lines.append(f"📁 {folder}/: {', '.join(items)}")
+    return "\n".join(lines)
+
 def is_ollama_running():
     try:
         ollama.list()
@@ -34,6 +67,16 @@ def get_tree_string(tree, indent=0):
         lines.extend(get_tree_string(subtree, indent + 1))
     return lines
 
+
+def generate_file_contents_summary(files, df):
+    lines = []
+    for path in files:
+        rows = df[df["file_path"] == path]
+        if not rows.empty:
+            lines.append(f"📄 **{path}**")
+            content = rows.iloc[0]["content"]
+            lines.append("```js\n" + content.strip()[:3000] + "\n```")  # Truncate large files
+    return "\n\n".join(lines)
 
 
 # --- Utility: Ask Ollama to Explain Code ---
@@ -208,6 +251,20 @@ def find_function_usages_in_df(df, function_names):
 
 # === Streamlit App ===
 st.set_page_config(page_title="GitHub Code Scanner", layout="wide")
+# --- Session State Initialization ---
+default_keys = {
+    "selected_files": [],
+    "selected_functions": [],
+    "ollama_response": "",
+    "ollama_prompt": "",
+    "ollama_duration": 0.0,
+    "traced_usages": []
+}
+
+for k, v in default_keys.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
 st.title("🔍 GitHub Code Structure Scanner")
 
 repo_url = st.text_input("Paste GitHub Repository URL", placeholder="https://github.com/user/repo")
@@ -222,157 +279,234 @@ if repo_url:
 
     if "scanned_repo" not in st.session_state or st.session_state.scanned_repo != repo_url:
         with st.spinner("🔍 Scanning repository..."):
-            files = get_repo_tree(user, repo)
-            print(files)
-            code_files = [f["path"] for f in files if os.path.splitext(f["path"])[1] in ext_map]
+            repo_tree = get_repo_tree(user, repo)
+            st.session_state.repo_tree = repo_tree
+
+            file_paths = [f["path"] for f in repo_tree if os.path.splitext(f["path"])[1] in ext_map]
+            st.session_state.file_paths = file_paths
+
 
             results = []
             with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = executor.map(lambda p: process_file(p, user, repo), code_files)
+                futures = executor.map(lambda path: process_file(path, user, repo), file_paths)
                 for r in futures:
                     results.extend(r)
 
             df_structure = pd.DataFrame(results, columns=["file_path", "language", "type", "signature", "content"])
-
             df_structure.drop_duplicates(subset=["file_path", "language", "type", "signature"], inplace=True)
 
-            
             def tag_code_block_multi(row):
                 name = row['signature'].lower()
                 file = row['file_path'].lower()
                 tags = []
-
-                if any(kw in name or kw in file for kw in ['auth', 'token', 'login', 'signup']):
-                    tags.append('auth')
-                if any(kw in name or kw in file for kw in ['db', 'sql', 'database', 'query']):
-                    tags.append('database')
-                if any(kw in name or kw in file for kw in ['util', 'helper', 'tool', 'misc']):
-                    tags.append('utils')
-                if any(kw in name or kw in file for kw in ['api', 'route', 'endpoint']):
-                    tags.append('api')
-                if any(kw in name or kw in file for kw in ['test', 'mock']):
-                    tags.append('test')
-
-                if not tags:
-                    tags.append('other')
-
+                if any(kw in name or kw in file for kw in ['auth', 'token', 'login', 'signup']): tags.append('auth')
+                if any(kw in name or kw in file for kw in ['db', 'sql', 'database', 'query']): tags.append('database')
+                if any(kw in name or kw in file for kw in ['util', 'helper', 'tool', 'misc']): tags.append('utils')
+                if any(kw in name or kw in file for kw in ['api', 'route', 'endpoint']): tags.append('api')
+                if any(kw in name or kw in file for kw in ['test', 'mock']): tags.append('test')
+                if not tags: tags.append('other')
                 return ", ".join(tags)
 
-
-            df_structure['tags'] = df_structure.apply(tag_code_block_multi, axis=1)
-
-            df_structure.drop_duplicates(subset=["file_path", "language", "type", "signature"], inplace=True)
+            df_structure["tags"] = df_structure.apply(tag_code_block_multi, axis=1)
 
             st.session_state.df_structure = df_structure
             st.session_state.scanned_repo = repo_url
     else:
         df_structure = st.session_state.df_structure
+        repo_tree = st.session_state.repo_tree
+        file_paths = st.session_state.file_paths
+
+    # === Tabs Layout ===
+    tab_labels = ["📋 Code Structure", "🔍 Search & Filter", "💬 Q&A & Tracing"]
+    tabs = st.tabs(tab_labels)
+    if "active_tab_index" not in st.session_state:
+        st.session_state.active_tab_index = 0
 
     
+    for i, tab in enumerate(tabs):
+        with tab:
+            st.session_state.active_tab_index = i
+            if i == 0:
+                    st.subheader("Repository Summary")
+                    st.markdown(f"**Repository:** `{user}/{repo}`")
+                    st.markdown(f"**Files Parsed:** `{len(df_structure['file_path'].unique())}`")
+                    st.markdown(f"**Languages Detected:** `{', '.join(df_structure['language'].unique())}`")
 
-    # --- Sidebar Filters ---
-    st.sidebar.title("🔍 Search Filter")
-    search_query = st.sidebar.text_input("Search keyword", key="search_query")
-    selected_type = st.sidebar.selectbox("Structure type", ["", "function", "class", "variable", "import"])
-    file_filter = st.sidebar.text_input("File name filter", key="file_filter")
-
-    # --- Filtered Data ---
-    filtered_df = search_code(df_structure, search_query, selected_type if selected_type else None, file_filter)
-    st.subheader("🔎 Search Results")
-    st.write(f"Results: {len(filtered_df)}")
-    st.dataframe(filtered_df.drop_duplicates(subset=["file_path"]), use_container_width=True)
-
-
-    
-    st.subheader("📌 Auto-Grouped Tags")
+                    st.markdown("### Repository Tree")
+                    tree = build_tree(file_paths)
+                    with st.expander("📂 Repository Tree"):
+                        st.code("\n".join(get_tree_string(tree)), language="text")
 
 
-    # Step 4: Show one consolidated table with tags
-    st.subheader("📋 Code Structure with Tags")
-    st.dataframe(df_structure[["file_path", "language", "type", "signature", "tags"]], use_container_width=True)
+                    st.markdown("### Code Structure and Tags")
+
+                    inner_tab1 = st.tabs(["Filter by Tags"])
+
+
+                    available_tags = df_structure["tags"].str.split(", ").explode().unique().tolist()
+                    selected_tags = st.multiselect("Select tags to filter", available_tags)
+
+                    if selected_tags:
+                        filtered_df = df_structure[df_structure["tags"].apply(lambda x: any(tag in x for tag in selected_tags))]
+                    else:
+                        filtered_df = df_structure
+
+                    st.dataframe(filtered_df[["file_path", "language", "type", "signature", "tags"]], use_container_width=True)
+
+
+    # === Tab 2: Tagged Code Blocks 
+
+    # === Tab 3: Search and Filter ===
+            elif i == 1:
+                    st.subheader("Search Codebase")
+
+                    st.markdown("Filter functions, classes, or code blocks using keywords or file name.")
+                    st.caption(f"Files Indexed: {df_structure['file_path'].nunique()}")
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        query = st.text_input("Keyword", key="q")
+                    with col2:
+                        btype = st.selectbox("Type", ["", "function", "class", "variable", "import"])
+                    with col3:
+                        fname = st.text_input("Filename Filter", key="fn")
+
+                    filtered = search_code(df_structure, query, btype or None, fname)
+                    st.caption(f"Matches Found: {len(filtered)}")
+                    st.dataframe(filtered, use_container_width=True)
+
+
+    # === Tab 4: Q&A and Function Tracing ===
+            elif i == 2:
+                    st.subheader("🔎 Trace Function Usages")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        prev_files = st.session_state.get("selected_files", [])
+
+                        files = st.multiselect(
+                            "Select files",
+                            df_structure["file_path"].unique().tolist(),
+                            default=prev_files
+                        )
+
+                        # If file selection changed, clear selected functions
+                        if set(files) != set(prev_files):
+                            st.session_state.selected_functions = []
+                            st.session_state.traced_usages = []
+
+
+                        # Update file selection in session
+                        st.session_state.selected_files = files
+
+
+                    with col2:
+                        s_df = df_structure[df_structure["file_path"].isin(files)] if files else df_structure
+                        funcs = s_df[s_df["type"] == "function"]["signature"].tolist()
+                        selected_funcs = st.multiselect(
+                            "Select functions",
+                            funcs,
+                            default=st.session_state.selected_functions
+                        )
+                        st.session_state.selected_functions = selected_funcs
+
+
+                    if st.button("🔍 Trace Usages"):
+                        if not selected_funcs:
+                            st.warning("Please select at least one function.")
+                        else:
+                            st.session_state.selected_functions = selected_funcs
+                            traced = find_function_usages_in_df(df_structure, [f.split("(")[0] for f in selected_funcs])
+
+                            if traced:
+                                # ✅ Deduplicate traced results
+                                unique_traced = sorted(set((func, file) for func, file in traced))
+                                st.session_state.traced_usages = unique_traced
+                                st.success(f"{len(unique_traced)} unique usage(s) found.")
+                            else:
+                                st.warning("No usages found in the repository.")
+                                st.session_state.traced_usages = []  # Optional: clear old if no new result
+
+                    # ✅ Display only once, always from session
+                    if st.session_state.traced_usages:
+                        st.markdown("### Traced Usages")
+                        st.dataframe(
+                            pd.DataFrame(
+                                st.session_state.traced_usages,
+                                columns=["Function", "Used In File"]
+                            ),
+                            use_container_width=True
+                        )
 
 
 
-    repo_tree = get_repo_tree(user, repo)
-    file_paths = [item["path"] for item in repo_tree]  
+                    st.markdown("---")
+                    st.subheader("💬 Ask Ollama About the Codebase")
 
-    # --- File Selector ---
-    st.markdown("## 📂 Select Files to Analyze or Ask About")
-    selected_files = st.multiselect(
-        "Choose specific files (or leave empty to include all):",
-        options=df_structure["file_path"].unique().tolist(),
-        key="selected_files"
-    )
-    selected_df = df_structure[df_structure["file_path"].isin(selected_files)] if selected_files else df_structure
+                    if files:
+                        st.markdown(f"📂 **Context limited to {len(files)} selected file(s)**")
+                        with st.expander("🔎 See selected file paths", expanded=False):
+                            for f in files:
+                                st.markdown(f"- `{f}`")
+                    else:
+                        st.markdown("📁 **Context includes the entire repository structure**")
 
-    if selected_files:
-        print("📂 Selected files:")
-        for path in selected_files:
-            print(f"➡️ {path}")
-        
-        print("\n🧠 Parsed entries from df_structure:")
-        print(selected_df[["file_path", "type", "signature"]].to_string(index=False))
+                    user_q = st.text_area("Enter your question here", placeholder="e.g., What does this project do?")
 
+                    if st.button("🧠 Ask Ollama") and user_q.strip():
+                        if st.session_state.ollama_response:
+                            st.markdown("### 💡 Last Ollama Response")
+                            with st.expander("📜 Prompt Used"):
+                                st.code(st.session_state.ollama_prompt, language="text")
+                            st.success(st.session_state.ollama_response)
+                            st.caption(f"⏱️ Took {st.session_state.ollama_duration} seconds")
 
-    # --- Ask Questions ---
-    st.markdown("## 💬 Ask Questions About Codebase")
-    question = st.text_input("Enter your question (e.g. 'What is the role of utils.py?')", key="code_question")
-    
-    st.markdown("## 🕵️‍♂️ Choose Functions to Trace")
-
-    func_options = selected_df[selected_df["type"] == "function"]["signature"].tolist()
-    selected_func_names = st.multiselect("Select functions to trace", func_options)
-
-    if st.button("🔎 Trace Selected Functions"):
-        selected_functions = [s.split("(")[0] for s in selected_func_names]
-
-        if not selected_functions:
-            st.info("No functions found in selected files.")
-        else:
-            # 🛠 Fix missing 'content' column if needed
-            if "content" not in df_structure.columns:
-                with st.spinner("Fetching missing file contents..."):
-                    def load_content(path):
-                        try:
-                            return get_file_raw(user, repo, path)
-                        except:
-                            return ""
-                    df_structure["content"] = df_structure["file_path"].apply(load_content)
-
-            with st.spinner("Searching for function calls..."):
-                usage_data = find_function_usages_in_df(df_structure, selected_functions)
-
-                if not usage_data:
-                    st.warning("No usages found across repo.")
-                else:
-                    usage_df = pd.DataFrame(usage_data, columns=["Function", "Used In File"])
-                    st.dataframe(usage_df.drop_duplicates(), use_container_width=True)
+                        if not is_ollama_running():
+                            st.error("❌ Ollama is not running. Please start the Ollama server.")
+                        else:
+                            with st.spinner("💭 Ollama is thinking..."):
+                                selected_paths = files if files else file_paths
+                                context = generate_file_contents_summary(selected_paths, df_structure)
 
 
-    if st.button("🧠 Ask with Ollama") and question.strip():
-        if not is_ollama_running():
-            st.error("❌ Ollama is not running. Please start with `ollama serve`.")
-        else:
-            if selected_files:
-                code_context = selected_df.to_string(index=False)
-                file_overview = f"Selected File Code Structure:\n{code_context}"
-            else:
-                file_paths = [item["path"] for item in get_repo_tree(user, repo)]
-                tree = build_tree(file_paths)
-                tree_string = "\n".join(get_tree_string(tree))
-                file_overview = f"Full Repository File Tree:\n{tree_string}"
+                                if files:
+                # Prompt when specific files are selected
+                                    prompt = f"""
+                                You are a senior software engineer helping analyze a subset of files from a codebase.
 
-            prompt = f"""You are an expert code analyst.
+                                Here is the context for the selected file(s):
 
-    {file_overview}
+                                {context}
 
-    Now answer this question clearly: {question}
-    """
-            response, dur = ollama_explain_code(prompt)
-            st.markdown("### 💡 Ollama's Answer")
-            st.write(response)
-            if dur:
-                st.caption(f"🕒 Answered in {dur} seconds")
+                                Based on the selected file(s), answer the following question:
+                                {user_q.strip()}
+                                """.strip()
+                                else:
+                                    # Prompt when full repo structure (tree) is used
+                                    prompt = f"""
+                                You are a codebase expert analyzing the entire repository.
+
+                                Below is the full project structure with summaries:
+
+                                {context}
+
+                                Use the complete context to answer the following question intelligently:
+                                {user_q.strip()}
+                                """.strip()
 
 
-#working code
+                                try:
+                                    print(prompt)
+                                    resp, dur = ollama_explain_code(prompt)
+                                    st.session_state.ollama_response = resp
+                                    st.session_state.ollama_duration = dur
+                                    st.session_state.ollama_prompt = prompt
+
+
+                                    if not resp.strip():
+                                        st.warning("⚠️ Received an empty response from Ollama.")
+                                    else:
+                                        st.markdown(f"**Response (in {dur} seconds):**")
+                                        st.markdown(resp)
+                                except Exception as e:
+                                    st.error(f"💥 Ollama failed: {e}")
