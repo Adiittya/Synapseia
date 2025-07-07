@@ -130,6 +130,34 @@ web_search_tool = {
     }
 }
 
+github_repo_tool = {
+    "type": "function",
+    "function": {
+        "name": "analyze_github_repo",
+        "description": (
+            "Fetches and analyzes the codebase of a public GitHub repository. "
+            "Use this tool ONLY when the user provides a valid GitHub repo URL in the format: https://github.com/user/repo. "
+            "The URL must be direct and must not include additional paths (e.g., no /tree/main or /issues). "
+            "This tool statically analyzes the repository to build a file structure, extract functions/classes/variables, and prepare them for deeper exploration. "
+            "Only invoke this when a valid public GitHub repository URL is explicitly mentioned in the user query."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "repo_url": {
+                    "type": "string",
+                    "description": (
+                        "The EXACT URL of the public GitHub repository. Must be in this format: "
+                        "`https://github.com/username/repository` (without subpaths like /blob, /tree, /issues, etc.)"
+                    )
+                }
+            },
+            "required": ["repo_url"]
+        }
+    }
+}
+
+
 # Dummy tool for when no external data is needed to answer
 skip_tool = {
     "type": "function",

@@ -250,7 +250,7 @@ def find_function_usages_in_df(df, function_names):
 
 
 # === Streamlit App ===
-st.set_page_config(page_title="GitHub Code Scanner", layout="wide")
+# st.set_page_config(page_title="GitHub Code Scanner", layout="wide")
 # --- Session State Initialization ---
 default_keys = {
     "selected_files": [],
@@ -266,7 +266,16 @@ for k, v in default_keys.items():
         st.session_state[k] = v
 
 
-def generate_github_page(repo_url: str):
+def analyze_github_repo(repo_url: str): 
+    if repo_url:
+
+        return True
+    
+    else:
+        return False
+
+def generate_repo_page(repo_url: str):
+    print("genrte ke adae")
     if not repo_url:
         st.error("❌ Please enter a valid GitHub URL.")
         return

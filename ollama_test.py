@@ -106,3 +106,10 @@
 
 # st.title("Main App Content Here")
 # st.write("Your Streamlit app has loaded successfully!")
+
+from parse import generate_github_page
+from tools.custom_scrapper import search_and_scrape
+
+search_and_scrape("hello")
+#tool for storing user preference / memories
+# generate_github_page("https://github.com/adiittya/finbuddy")

@@ -5,6 +5,8 @@ from ollama import chat, ChatResponse
 from tools.custom_scrapper import search_and_scrape
 from tools.custom_yfinance import get_stock_summary
 from tools.custom_memories import store_memory, search_memory
+from tools.custom_github import analyze_github_repo
+from tools.custom_github import generate_repo_page
 from ui_components.memory_manager_modal import memory_manager_dialog
 from tool_schema import tools_schema 
 from tool_schema import tools_prompt
@@ -20,7 +22,8 @@ available_functions = {
     'skip_tools': lambda: "Answer provided directly by AI without external tools.",
     'get_stock_summary': get_stock_summary,
     'store_memory': store_memory,
-    "search_memory": search_memory
+    "search_memory": search_memory,
+    "analyze_github_repo": analyze_github_repo
 }
 
 logging.basicConfig(level=logging.INFO, filename="tool_logs.txt", filemode="a",
@@ -31,8 +34,19 @@ emoji_map = {
     "search_and_scrape": "🌐",
     "skip_tools": "💡",
     "store_memory": "💾",
-    "search_memory": "📝"
+    "search_memory": "📝",
+    "analyze_github_repo": "🧑‍💻"
 }
+
+agent_name_map = {
+    "search_and_scrape": "Scraping Agent 🌐",
+    "get_stock_summary": "Stock Agent 📈",
+    "store_memory": "Memory Agent 💾",
+    "search_memory": "Memory Agent 📝",
+    "skip_tools": "Direct Answer 💡",
+    "analyze_github_repo": "GitHub Agent 🧑‍💻"
+}
+
 
 def stream_ollama_response(model: str, messages: list):
     for chunk in chat(model, messages=messages, stream=True):
@@ -43,6 +57,7 @@ def stream_ollama_response(model: str, messages: list):
 # ------------------------ UI SETUP ------------------------
 
 
+st.set_page_config(page_title="SYNAPSEIA", layout="wide")
 # ------------------------ DECLARING SESSIONS ------------------------
 if "query" not in st.session_state:
     st.session_state.query = ""
@@ -69,10 +84,16 @@ if "chart_symbols" not in st.session_state:
 if "tool_expander" not in st.session_state:
     st.session_state.charts_generated = False
     
+if "show_github_analysis" not in st.session_state:
+    st.session_state.show_github_analysis = False
+if "github_repo_url" not in st.session_state:
+    st.session_state.github_repo_url = ""
+
+    
+    
+    
     
 # ------------------------ UI CONFIG ------------------------
-
-st.set_page_config(page_title="SYNAPSEIA", layout="wide")
 
 st.title("Project SYNAPSEIA")
 st.markdown("Stock & Web Assistant")
@@ -135,6 +156,8 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
     st.session_state.func_name = None
     st.session_state.search_and_scrape_called = False
     st.session_state.last_query_ran = query
+    st.session_state.show_github_analysis = False
+    st.session_state.github_repo_url = ""
 
     with st.spinner("Thinking..."):
         initial_messages = [
@@ -162,7 +185,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
             } 
         ]
 
-        tools = [tools_schema.web_search_tool, tools_schema.skip_tool, tools_schema.stock_fetch_tool, tools_schema.store_memory_tool, tools_schema.search_memory_tool]
+        tools = [tools_schema.web_search_tool, tools_schema.skip_tool, tools_schema.stock_fetch_tool, tools_schema.store_memory_tool, tools_schema.search_memory_tool, tools_schema.github_repo_tool]
         try:
             response: ChatResponse = chat('llama3.2', messages=initial_messages, tools=tools)
             logging.info("Initial chat call successful")
@@ -225,8 +248,9 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
 
                 # REAL-TIME MULTI-STEP STATUS UPDATES 
                 try:
-                    with st.status(f"{emoji} Calling `{func_name}` and refining answer with AI...") as status:
-                        status.write(f"Step 1: Calling `{func_name}` tool...")
+                    agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
+                    with st.status(f"{agent_label} and refining answer with AI...", expanded=True) as status:
+                        status.write(f"Step 1: Calling `{agent_label}` tool...")
                         st.session_state.tool_expander = True
                         output = func(**args)
                         
@@ -315,7 +339,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 'name': func_name,
                                 'content': output_str
                             }]
-
+                        
                         elif func_name == "skip_tools":
                             # For skip_tools, just append output as a direct AI answer
                             refinement_messages = initial_messages + [{
@@ -323,7 +347,8 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 'name': func_name,
                                 'content': output_str
                             }]
-
+                    
+                    
                         else:
                             # Default fallback
                             refinement_messages = initial_messages + [{
@@ -346,12 +371,19 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                         st.session_state.charts_generated = True
                         st.session_state.chart_symbols = stock_symbols 
                         print("hiiiii", stock_symbols)
-                          
-                    st.subheader("💬 Final Answer:")
-                    st.json(refinement_messages, expanded= False)
-                    st.write_stream(stream_ollama_response("llama3.2", refinement_messages))  # stream live
+                        
+                    elif func_name == "analyze_github_repo":
+                        repo_url = str(args.get("repo_url", "")).strip()
+                        print(func_name, args)
+                        st.session_state.github_repo_url = repo_url
+                        st.session_state.show_github_analysis = True
                     
-                    output_rendered = True
+                    if not st.session_state.show_github_analysis:
+                        st.subheader("💬 Final Answer:")
+                        st.json(refinement_messages, expanded= False)
+                        st.write_stream(stream_ollama_response("llama3.2", refinement_messages))  # stream live
+                        
+                        output_rendered = True
                     
 
 
@@ -359,6 +391,17 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                 except Exception as e:
                     st.error(f"Error executing `{func_name}`: {e}")
                     continue
+
+
+if st.session_state.show_github_analysis and st.session_state.github_repo_url:
+    # with st.expander("🧑‍💻 GitHub Code Scanner", expanded=True):
+    # from tools.custom_github import generate_repo_page
+    generate_repo_page(st.session_state.github_repo_url)
+
+    if st.button("❌ Hide GitHub Analysis"):
+        st.session_state.show_github_analysis = False
+        st.session_state.github_repo_url = ""
+        st.rerun()
 
 
 if st.session_state.search_and_scrape_called and st.session_state.get('output'):
@@ -377,8 +420,9 @@ if st.session_state.search_and_scrape_called and st.session_state.get('output'):
                 )
             
                 with st.container():
-                    with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
-                        status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
+                    agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
+                    with st.status(f"{agent_label} and refining answer with AI...") as status:
+                        status.write(f"Step 1: Calling `{agent_label}` tool...")
                         status.write("Step 2: Tool call completed.")
                     
                     with st.expander("📤 Output from Tool", expanded=False):
@@ -440,9 +484,10 @@ if (
                 )
             
             with st.container():
-                with st.status(f"Calling `{st.session_state.func_name}` and refining answer with AI...") as status:
-                    status.write(f"Step 1: Calling `{st.session_state.func_name}` tool...")
-                    status.write("Step 2: Tool call completed.")
+                agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
+                with st.status(f"{agent_label} and refining answer with AI...") as status:
+                        status.write(f"Step 1: Calling `{agent_label}` tool...")
+                        status.write("Step 2: Tool call completed.")
                 
                 with st.expander("📤 Output from Tool", expanded=False):
                     st.markdown("#### 📄 Response")
