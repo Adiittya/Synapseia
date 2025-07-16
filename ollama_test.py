@@ -110,6 +110,14 @@
 from parse import generate_github_page
 from tools.custom_scrapper import search_and_scrape
 
-search_and_scrape("hello")
+# search_and_scrape("hello")
+from googlesearch import search
+
+resultsearch("Google", num_results=100)
 #tool for storing user preference / memories
 # generate_github_page("https://github.com/adiittya/finbuddy")
+
+# from ddgs import DDGS
+
+# results = DDGS().text("python programming", max_results=5)
+# print(results)

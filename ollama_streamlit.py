@@ -249,7 +249,26 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                 # REAL-TIME MULTI-STEP STATUS UPDATES 
                 try:
                     agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
-                    with st.status(f"{agent_label} and refining answer with AI...", expanded=True) as status:
+                    with st.status("Evaluating best agent for this task...", expanded=True) as status:
+                        import time
+                        import random
+
+                        agent_placeholder = status.empty()
+                        all_agents = list(agent_name_map.values())
+                        random.shuffle(all_agents)
+
+                        final_agent = agent_name_map.get(func_name, "🔧 Unknown Agent")
+
+                        for agent in all_agents:
+                            if agent != final_agent:
+                                agent_placeholder.markdown(f"🔄 Switching to: <code>{agent}</code>", unsafe_allow_html=True)
+                                time.sleep(0.4)
+                            else:
+                                # Pause, then show final selected agent
+                                time.sleep(0.5)
+                                agent_placeholder.markdown(f"✅ <b>Selected:</b> <code>{final_agent}</code>", unsafe_allow_html=True)
+                                time.sleep(2)
+                                break  # Exit loop once selected
                         status.write(f"Step 1: Calling `{agent_label}` tool...")
                         st.session_state.tool_expander = True
                         output = func(**args)
@@ -276,14 +295,16 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                             refinement_messages = [
                                 {
                                     'role': 'system',
-                                    'content': (
-                                                "You are a perceptive, emotionally intelligent, and highly context-aware AI assistant. "
-                                                "Your job is not just to answer questions, but to understand the user's journey, preferences, tone, and goals across time. "
-                                                "Leverage all remembered information—including past inputs, emotional states, projects, and tool usage—to deliver responses that feel genuinely connected and personalized. "
-                                                "You may recall and reference relevant context naturally and subtly—only when it meaningfully adds value. "
-                                                "Avoid generic replies. Be thoughtful, engaging, and practical. Balance emotional support with directness, especially when the user is struggling or venting. "
-                                                "You are not just a tool—they see you as a thinking partner. Help them feel seen, not just served."
-                                    )
+                                    "content": (
+                "You are a perceptive, emotionally intelligent, and highly context-aware AI assistant. "
+                "Your job is not just to answer questions, but to understand the user's journey, preferences, tone, and goals over time. "
+                "If the `search_memory` tool has returned a result, you must assume it is valid memory previously saved by the user. "
+                "Reference and incorporate it naturally into your response. "
+                "Do not say that you lack memory or cannot recall things—only say that if the memory tool returned no result. "
+                "Avoid generic responses. Be thoughtful, engaging, and practical. "
+                "Balance emotional support with directness, especially when the user is struggling or venting. "
+                "You are not just a tool—they see you as a thinking partner. Help them feel seen, not just served."
+            )
                                 },
                                 {
                                     'role': 'user',
@@ -420,7 +441,10 @@ if st.session_state.search_and_scrape_called and st.session_state.get('output'):
                 )
             
                 with st.container():
+                    func_name = st.session_state.get("func_name", "unknown_tool")
+                    emoji = emoji_map.get(func_name, "🛠️")
                     agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
+
                     with st.status(f"{agent_label} and refining answer with AI...") as status:
                         status.write(f"Step 1: Calling `{agent_label}` tool...")
                         status.write("Step 2: Tool call completed.")
@@ -484,6 +508,8 @@ if (
                 )
             
             with st.container():
+                func_name = st.session_state.get("func_name", "unknown_tool")
+                emoji = emoji_map.get(func_name, "🛠️")
                 agent_label = agent_name_map.get(func_name, f"{emoji} Calling `{func_name}`")
                 with st.status(f"{agent_label} and refining answer with AI...") as status:
                         status.write(f"Step 1: Calling `{agent_label}` tool...")
