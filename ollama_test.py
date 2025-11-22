@@ -107,17 +107,59 @@
 # st.title("Main App Content Here")
 # st.write("Your Streamlit app has loaded successfully!")
 
-from parse import generate_github_page
-from tools.custom_scrapper import search_and_scrape
+from playwright.sync_api import sync_playwright
+import random
+import logging
+from bs4 import BeautifulSoup
+import time
 
-# search_and_scrape("hello")
-from googlesearch import search
 
-resultsearch("Google", num_results=100)
-#tool for storing user preference / memories
-# generate_github_page("https://github.com/adiittya/finbuddy")
+USER_AGENTS = [
+    # Chrome (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Firefox (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
+    # Safari (Mac)
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_6_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
+    # Edge (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.1938.76 Safari/537.36 Edg/116.0.1938.76",
+    # Chrome (Android)
+    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Mobile Safari/537.36",
+    # Safari (iPhone)
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1",
+]
 
-# from ddgs import DDGS
+def scrape_page(url , retries = 3):
+    
+    for attempt in range(retries):
+        try:
+            with sync_playwright() as p:
+                browser = p.firefox.launch(headless= True)
+                content = browser.new_context(user_agent=random.choice(USER_AGENTS))
+                page = content.new_page()
+                
+                 
+                logging.info(f"Playwright fetching {url} (Attempt {attempt + 1})")
+                page.goto(url, timeout=20000)
+                page.wait_for_timeout(2000)
+                
+                content = page.content()
+                soup = BeautifulSoup(content, "html.parser")
 
-# results = DDGS().text("python programming", max_results=5)
-# print(results)
+                article = soup.find('article')
+                if article:
+                    text = article.get_text(separator="\n", strip=True)
+                else:
+                    elements = soup.find_all(['h1', 'h2', 'h3', 'p'])
+                    text = "\n".join(el.get_text(strip=True) for el in elements)
+
+                browser.close()
+                return text[:2000]
+
+        except Exception as e:
+            logging.warning(f"Playwright failed: {e}")
+            time.sleep(2 ** attempt)
+
+    return f"Failed to scrape {url} after {retries} retries."
+
+print(scrape_page("https://x.com/airindia/with_replies"))

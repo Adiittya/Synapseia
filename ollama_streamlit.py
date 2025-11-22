@@ -19,7 +19,6 @@ from ui_components.stock_graph_generation import generate_multiple_charts
 
 available_functions = { 
     'search_and_scrape': search_and_scrape,
-    'skip_tools': lambda: "Answer provided directly by AI without external tools.",
     'get_stock_summary': get_stock_summary,
     'store_memory': store_memory,
     "search_memory": search_memory,
@@ -53,6 +52,8 @@ def stream_ollama_response(model: str, messages: list):
         if chunk and getattr(chunk, "message", None):
             st.session_state.ai_answer += chunk.message.content
             yield chunk.message.content
+            
+            
 
 # ------------------------ UI SETUP ------------------------
 
@@ -123,7 +124,7 @@ suggestions = [
     "What stock price of RELIANCE and TATAMOTORS?",
     "Show me latest news of tata motors.",
     "What's the current weather in Mumbai?",
-    "Spill the latest tea about Wizard liz controversy 😋"
+    "Spill the latest tea about Elon Musk and trump😋"
 ]
 
 cols = st.columns(len(suggestions))
@@ -165,25 +166,6 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
             {'role': 'user', 'content': query}
         ]
 
-        normal_messages = [
-            {'role': 'system', 'content': "You're a helpful AI assistant."},
-            {'role': 'user', 'content': query}
-        ]
-
-        memory_messages = [
-            {
-                'role': 'system',
-                'content': (
-                    "You are a helpful AI assistant. Your role is to remember and refer to what the user has previously told you. "
-                    "The context of the conversation may include entries from memory with the role 'tool', and you should use that information "
-                    "to respond appropriately."
-                )
-            },
-            {
-                'role': 'user',
-                'content': query
-            } 
-        ]
 
         tools = [tools_schema.web_search_tool, tools_schema.skip_tool, tools_schema.stock_fetch_tool, tools_schema.store_memory_tool, tools_schema.search_memory_tool, tools_schema.github_repo_tool]
         try:
@@ -200,6 +182,26 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                 args = tool.function.arguments if isinstance(tool.function.arguments, dict) else {}
 
                 emoji = emoji_map.get(func_name, "🔧")
+                
+                # If model chose skip_tools, don't call any Python tool.
+                # Just do a normal chat response and return.
+                if func_name == "skip_tools":
+                     # clear previous answer for this turn
+                    st.session_state.ai_answer = ""
+
+                    direct_messages = [
+                        {'role': 'system', 'content': "You're a helpful, conversational AI assistant."},
+                        {'role': 'user', 'content': query}
+                    ]
+
+                    st.subheader("💬 Final Answer:")
+                    st.write_stream(stream_ollama_response("llama3.2", direct_messages))
+
+                    # at this point st.session_state.ai_answer is already filled by stream_ollama_response
+                    output_rendered = True
+                    break
+
+
                 # st.info(f"{emoji} AI selected function: `{func_name}` with args {args}")
 # -------------------------- Validate and process inputs with if-else for each tool-----------------------------------------------------------------
                 if func_name == "search_and_scrape":
@@ -360,16 +362,7 @@ if (ask_button_pressed or st.session_state.get("ask_now")) and query and query !
                                 'name': func_name,
                                 'content': output_str
                             }]
-                        
-                        elif func_name == "skip_tools":
-                            # For skip_tools, just append output as a direct AI answer
-                            refinement_messages = initial_messages + [{
-                                'role': 'tool',
-                                'name': func_name,
-                                'content': output_str
-                            }]
-                    
-                    
+                            
                         else:
                             # Default fallback
                             refinement_messages = initial_messages + [{
@@ -529,4 +522,13 @@ if st.session_state.show_sources_clicked:
     show_sources(st.session_state['output'])
     st.session_state.show_sources_clicked = False
 
-
+# 🔁 Fallback renderer for skip_tools and simple answers
+if (
+    not output_rendered
+    and st.session_state.ai_answer
+    and not st.session_state.search_and_scrape_called
+    and not st.session_state.get("charts_generated", False)
+    and not st.session_state.get("show_github_analysis", False)
+):
+    st.subheader("💬 Final Answer:")
+    st.markdown(st.session_state.ai_answer)

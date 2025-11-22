@@ -36,7 +36,7 @@ def get_url_logo(base_url):
     except Exception:
         return None
     
-def search_and_scrape(query, max_results=5, retries=3):
+def search_and_scrape(query, max_results=5, retries=1):
     def get_random_user_agent():
         return random.choice(USER_AGENTS)
 
@@ -65,7 +65,8 @@ def search_and_scrape(query, max_results=5, retries=3):
 
     results_list = []
 
-    results = DDGS().text(query,  safesearch='Off', max_results=max_results,backend ='google')
+    results = DDGS().text(query,  safesearch='Off', max_results=max_results,backend ='mullvad_google')
+    print("bing")
     if results:
         for i, result in enumerate(results, 1):
             url = result['href']
