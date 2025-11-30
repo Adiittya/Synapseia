@@ -65,7 +65,7 @@ def search_and_scrape(query, max_results=5, retries=1):
 
     results_list = []
 
-    results = DDGS().text(query,  safesearch='Off', max_results=max_results,backend ='mullvad_google')
+    results = DDGS().text(query,  safesearch='Off', max_results=max_results,backend ='google')
     print("bing")
     if results:
         for i, result in enumerate(results, 1):

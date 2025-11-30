@@ -1,165 +1,271 @@
+import streamlit as st
 
-# import streamlit as st
-# import time
+# Page config
+st.set_page_config(page_title="Reddit Answers", layout="wide", initial_sidebar_state="collapsed")
 
-# animated_svg = """
-# <svg width="100%" height="100%" viewBox="0 0 1000 600" fill="none" xmlns="http://www.w3.org/2000/svg" style="max-width: 800px; max-height: 600px; overflow: visible;">
-#   <defs>
-#     <filter id="neon" x="-50%" y="-50%" width="200%" height="200%">
-#       <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="white" flood-opacity="0.1"/>
-#       "Your Streamlit app has loaded successfully!"
-#       <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="white" flood-opacity="0.3"/>
-#     </filter>
-#   </defs>
-#   <text
-#     x="50%" y="50%"
-#     dominant-baseline="middle"
-#     text-anchor="middle"
-#     font-size="100"
-#     font-weight="bold"
-#     font-family="sans-serif"
-#     stroke="white"
-#     stroke-width="2"
-#     fill="none"
-#     stroke-dasharray="800"
-#     stroke-dashoffset="800"
-#     filter="url(#neon)"
-#   >
-#     ECharts
-#   </text>
-#   <style>
-#     text {
-#       animation: dash 5s ease-in-out forwards infinite;
-#       text-shadow:
-#         0 Allora: The text was updated successfully, but the background color of the loading container is not visible due to the transparent background. The issue has been resolved by setting the background to transparent, ensuring the neon text effect is visible and the layout remains intact.
-#       text-shadow:
-#         0 0 5px white,
-#         0 0 10px white,
-#         0 0 15px white;
-#     }
-#     @keyframes dash {
-#       0% {
-#         stroke-dashoffset: 800;
-#         fill: transparent;
-#       }
-#       70% {
-#         stroke-dashoffset: 0;
-#         fill: transparent;
-#       }
-#       100% {
-#         stroke-dashoffset: 0;
-#         fill: white;
-#       }
-#     }
-#   </style>
-# </svg>
-# """
+# Custom CSS for dark theme and styling
+st.markdown("""
+<style>
+    /* Dark background */
+    .stApp {
+        background-color: #0f0f0f;
+    }
+    
+    /* Remove padding */
+    .main .block-container {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+        max-width: 100%;
+    }
+    
+    /* Header styling */
+    .main-header {
+        text-align: center;
+        padding: 2rem 1rem 3rem 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .title {
+        font-size: 4.5rem;
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+        line-height: 1.1;
+    }
+    
+    .reddit {
+        color: #ff4500;
+    }
+    
+    .answers {
+        color: #ff6b35;
+    }
+    
+    .subtitle {
+        font-size: 1.4rem;
+        color: #d1d5db;
+        line-height: 1.6;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    /* Scrolling container */
+    .scroll-container {
+        overflow-x: hidden;
+        white-space: nowrap;
+        margin-bottom: 1rem;
+        padding: 0.5rem 0;
+        position: relative;
+    }
+    
+    /* Blur effect on edges */
+    .scroll-container::before,
+    .scroll-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 150px;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    .scroll-container::before {
+        left: 0;
+        background: linear-gradient(to right, #0f0f0f 0%, transparent 100%);
+    }
+    
+    .scroll-container::after {
+        right: 0;
+        background: linear-gradient(to left, #0f0f0f 0%, transparent 100%);
+    }
+    
+    .scroll-row {
+        display: inline-flex;
+        animation: scroll 60s linear infinite;
+        gap: 0.75rem;
+    }
+    
+    .scroll-row-reverse {
+        display: inline-flex;
+        animation: scroll-reverse 65s linear infinite;
+        gap: 0.75rem;
+    }
+    
+    @keyframes scroll {
+        0% {
+            transform: translateX(0);
+        }
+        100% {
+            transform: translateX(-50%);
+        }
+    }
+    
+    @keyframes scroll-reverse {
+        0% {
+            transform: translateX(-50%);
+        }
+        100% {
+            transform: translateX(0);
+        }
+    }
+    
+    .scroll-row:hover, .scroll-row-reverse:hover {
+        animation-play-state: paused;
+    }
+    
+    /* Topic button styling */
+    .topic-btn {
+        display: inline-block;
+        background-color: #1a1a1a;
+        color: #e5e5e5;
+        border: 1px solid #2a2a2a;
+        border-radius: 9999px;
+        padding: 0.65rem 1.5rem;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        user-select: none;
+    }
+    
+    .topic-btn:hover {
+        background-color: #2a2a2a;
+        border-color: #3a3a3a;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 69, 0, 0.2);
+    }
+    
+    /* Hide default streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {visibility: hidden;}
+    
+    /* Learn more link */
+    .learn-more {
+        text-align: center;
+        margin-top: 4rem;
+        padding: 2rem;
+    }
+    
+    .learn-more-link {
+        color: #9ca3af;
+        text-decoration: none;
+        font-size: 1.05rem;
+        transition: color 0.3s;
+    }
+    
+    .learn-more-link:hover {
+        color: #e5e5e5;
+    }
+    
+    /* Remove streamlit branding */
+    .css-1v0mbdj {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# loading_screen_html = f"""
-# <style>
-#   /* Override Streamlit's default styles with high specificity */
-#   [data-testid="stAppViewContainer"], .stApp, .main, .block-container {{
-#     margin: 0 !important;
-#     padding: 0 !important;
-#     height: 100vh !important;
-#     width: 100vw !important;
-#     overflow: hidden !important;
-#     background-color: transparent !important;
-#   }}
-#   /* Center the loading container */
-#   .loading-container {{
-#     position: fixed;
-#     top: 0;
-#     left: 0;
-#     height: 100vh;
-#     width: 100vw;
-#     display: flex;
-#     justify-content: center;
-#     align-items: center;
-#     background: transparent;
-#     overflow: hidden;
-#     z-index: 9999;
-#   }}
-#   /* Ensure SVG is centered and responsive */
-#   .loading-container svg {{
-#     width: 80vw;
-#     height: auto;
-#     max-width: 800px;
-#     max-height: 600px;
-#   }}
-# </style>
+# Header
+st.markdown("""
+<div class="main-header">
+    <div class="title">
+        <span class="reddit">reddit</span> <span class="answers">answers</span>
+    </div>
+    <div class="subtitle">
+        Got a question? Ask it and get answers, perspectives, and recommendations from all of Reddit
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# <div class="loading-container">
-#     {animated_svg}
-# </div>
-# """
-
-# # Display the loading screen
-# loading_placeholder = st.empty()
-# loading_placeholder.markdown(loading_screen_html, unsafe_allow_html=True)
-
-# # Simulate loading
-# time.sleep(6)
-
-# # Clear the loading screen and show the main content
-# loading_placeholder.empty()
-
-# st.title("Main App Content Here")
-# st.write("Your Streamlit app has loaded successfully!")
-
-from playwright.sync_api import sync_playwright
-import random
-import logging
-from bs4 import BeautifulSoup
-import time
-
-
-USER_AGENTS = [
-    # Chrome (Windows)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    # Firefox (Windows)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
-    # Safari (Mac)
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_6_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
-    # Edge (Windows)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.1938.76 Safari/537.36 Edg/116.0.1938.76",
-    # Chrome (Android)
-    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Mobile Safari/537.36",
-    # Safari (iPhone)
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1",
+# Topics data - expanded for infinite scroll
+topics_row1 = [
+    ("🎧", "best wireless ear buds"),
+    ("💸", "biggest investment mistakes"),
+    ("🧠", "ADHD study tips"),
+    ("💻", "best gaming laptop"),
+    ("🎭", "anime similar to demon slayer"),
+    ("💼", "should I change jobs"),
+    ("🎵", "obscure pop songs from the 90s"),
+    ("🎮", "best arkham game"),
 ]
 
-def scrape_page(url , retries = 3):
+topics_row2 = [
+    ("🐱", "how to tell if a cut is infected"),
+    ("🍊", "top vitamin c serums"),
+    ("🎨", "learn to draw digitally"),
+    ("📺", "best adult animated series"),
+    ("📺", "best selling sunset drama"),
+    ("⌚", "garmin vs apple watch"),
+    ("🥽", "VR headset recommendations"),
+]
+
+topics_row3 = [
+    ("💬", "how to ask someone out without being weird"),
+    ("😰", "how to deal with anxiety"),
+    ("🏫", "teaching middle school vs high school"),
+    ("🏋️", "best home workout routine"),
+    ("📚", "learn coding from scratch"),
+    ("☕", "coffee vs tea benefits"),
+    ("🎸", "beginner guitar songs"),
+]
+
+# Create infinite scrolling rows
+def create_scroll_row(topics, reverse=False):
+    row_class = "scroll-row-reverse" if reverse else "scroll-row"
+    buttons_html = ""
     
-    for attempt in range(retries):
-        try:
-            with sync_playwright() as p:
-                browser = p.firefox.launch(headless= True)
-                content = browser.new_context(user_agent=random.choice(USER_AGENTS))
-                page = content.new_page()
-                
-                 
-                logging.info(f"Playwright fetching {url} (Attempt {attempt + 1})")
-                page.goto(url, timeout=20000)
-                page.wait_for_timeout(2000)
-                
-                content = page.content()
-                soup = BeautifulSoup(content, "html.parser")
+    # Duplicate topics for seamless infinite scroll
+    all_topics = topics * 3
+    
+    for emoji, text in all_topics:
+        buttons_html += f'<div class="topic-btn">{emoji} {text}</div>'
+    
+    return f'<div class="{row_class}">{buttons_html}</div>'
 
-                article = soup.find('article')
-                if article:
-                    text = article.get_text(separator="\n", strip=True)
-                else:
-                    elements = soup.find_all(['h1', 'h2', 'h3', 'p'])
-                    text = "\n".join(el.get_text(strip=True) for el in elements)
+# Row 1 - scroll left
+st.markdown(f"""
+<div class="scroll-container">
+    {create_scroll_row(topics_row1, reverse=False)}
+</div>
+""", unsafe_allow_html=True)
 
-                browser.close()
-                return text[:2000]
+# Row 2 - scroll right
+st.markdown(f"""
+<div class="scroll-container">
+    {create_scroll_row(topics_row2, reverse=True)}
+</div>
+""", unsafe_allow_html=True)
 
-        except Exception as e:
-            logging.warning(f"Playwright failed: {e}")
-            time.sleep(2 ** attempt)
+# Row 3 - scroll left
+st.markdown(f"""
+<div class="scroll-container">
+    {create_scroll_row(topics_row3, reverse=False)}
+</div>
+""", unsafe_allow_html=True)
 
-    return f"Failed to scrape {url} after {retries} retries."
+# Learn more link
+st.markdown("""
+<div class="learn-more">
+    <a href="#" class="learn-more-link">Learn how Reddit Answers works →</a>
+</div>
+""", unsafe_allow_html=True)
 
-print(scrape_page("https://x.com/airindia/with_replies"))
+# from ui_components.suggestion_scroll import suggestion_scroll_ui
+
+# topics = [
+#     ("🎧", "best wireless ear buds"),
+#     ("💸", "biggest investment mistakes"),
+#     ("🧠", "ADHD study tips"),
+#     ("💻", "best gaming laptop"),
+#     ("🎭", "anime similar to demon slayer"),
+#     ("💼", "should I change jobs"),
+#     ("🎵", "obscure pop songs from the 90s"),
+#     ("🎮", "best arkham game"),
+#     ("🐱", "how to tell if a cut is infected"),
+#     ("🎨", "learn to draw digitally"),
+#     ("📺", "best adult animated series"),
+#     ("🥽", "VR headset recommendations"),
+# ]
+
+# suggestion_scroll_ui(topics, num_rows=3)
