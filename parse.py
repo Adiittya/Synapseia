@@ -94,7 +94,7 @@ def ollama_explain_code(prompt, model="llama3.2"):
         return f"⚠️ Ollama error: {str(e)}", None
 
 # --- GitHub Auth ---
-token = "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"  # 🔒 Replace this with your GitHub PAT
+token = "xxxxxxxxxxxxxxxxxxxxxxx"  # 🔒 Replace this with your GitHub PAT
 headers = {
     "Authorization": f"token {token}",
     "Accept": "application/vnd.github.v3+json",
