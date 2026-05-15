@@ -28,7 +28,7 @@
 
 ## 🎥 Demo
 
-> [](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/intro.gif)
+![Synapseia Demo](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/intro.gif)
 
 The demo showcases:
 - Multi-agent orchestration routing a complex query through specialized agents
@@ -54,39 +54,7 @@ Synapseia is built around a modular set of specialized agents. Each one is indep
 ---
 
 ## 🏗️ Architecture
-
-```
-                        ┌─────────────────────────┐
-                        │       User Query         │
-                        └────────────┬────────────┘
-                                     │
-                        ┌────────────▼────────────┐
-                        │    Orchestrator Core     │
-                        │  ┌────────────────────┐  │
-                        │  │  Intent Detection  │  │
-                        │  │  Agent Selection   │  │
-                        │  │  Context Handling  │  │
-                        │  └────────────────────┘  │
-                        └──┬──────┬──────┬─────────┘
-                           │      │      │
-              ┌────────────▼──┐ ┌─▼──────▼────┐ ┌──────────────┐
-              │  Web Agent    │ │ Stock Agent  │ │  Code Agent  │
-              │               │ │              │ │              │
-              │ • Scrape      │ │ • Fetch data │ │ • Map repos  │
-              │ • Filter      │ │ • Plot charts│ │ • Trace fns  │
-              │ • Cite        │ │ • Compare    │ │ • Refactor   │
-              └───────┬───────┘ └──────┬───────┘ └──────┬───────┘
-                      │                │                 │
-              ┌───────▼────────────────▼─────────────────▼───────┐
-              │          Memory + Validation Layer                 │
-              │   • Local storage  • Context injection            │
-              │   • Output validation  • Structured formatting    │
-              └────────────────────────┬──────────────────────────┘
-                                       │
-                        ┌──────────────▼──────────┐
-                        │     Unified Response      │
-                        └──────────────────────────┘
-```
+![Architecture](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/image.png)
 
 The orchestration layer manages:
 - **Agent routing** — intelligently selects and chains the right agents per query
