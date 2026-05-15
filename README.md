@@ -15,6 +15,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Ollama](https://img.shields.io/badge/ollama-local%20LLMs-black?style=flat-square)](https://ollama.ai)
 [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20local-green?style=flat-square)](#-privacy-first-ai)
 
 </div>
@@ -54,7 +55,37 @@ Synapseia is built around a modular set of specialized agents. Each one is indep
 
 ## 🏗️ Architecture
 
-
+```
+                        ┌─────────────────────────┐
+                        │       User Query         │
+                        └────────────┬────────────┘
+                                     │
+                        ┌────────────▼────────────┐
+                        │    Orchestrator Core     │
+                        │  ┌────────────────────┐  │
+                        │  │  Intent Detection  │  │
+                        │  │  Agent Selection   │  │
+                        │  │  Context Handling  │  │
+                        │  └────────────────────┘  │
+                        └──┬──────┬──────┬─────────┘
+                           │      │      │
+              ┌────────────▼──┐ ┌─▼──────▼────┐ ┌──────────────┐
+              │  Web Agent    │ │ Stock Agent  │ │  Code Agent  │
+              │               │ │              │ │              │
+              │ • Scrape      │ │ • Fetch data │ │ • Map repos  │
+              │ • Filter      │ │ • Plot charts│ │ • Trace fns  │
+              │ • Cite        │ │ • Compare    │ │ • Refactor   │
+              └───────┬───────┘ └──────┬───────┘ └──────┬───────┘
+                      │                │                 │
+              ┌───────▼────────────────▼─────────────────▼───────┐
+              │          Memory + Validation Layer                 │
+              │   • Local storage  • Context injection            │
+              │   • Output validation  • Structured formatting    │
+              └────────────────────────┬──────────────────────────┘
+                                       │
+                        ┌──────────────▼──────────┐
+                        │     Unified Response      │
+                        └──────────────────────────┘
 ```
 
 The orchestration layer manages:
@@ -92,7 +123,6 @@ Synapseia is built with a zero-trust approach to external services.
 **Backend & Databases**
 - Python, FastAPI
 - ChromaDB (vector store)
-
 
 ---
 
@@ -134,8 +164,6 @@ Synapseia is a proof-of-concept and ongoing exploration of what happens when AI 
 - **Private** — no external calls, no data leakage, no corporate dependency
 
 The goal isn't to replicate a cloud AI product. It's to demonstrate that a **personal AI system** — one that knows you, remembers you, and works for you — can exist entirely on commodity hardware.
-
----
 
 ## 📜 License
 
