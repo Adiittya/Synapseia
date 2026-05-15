@@ -36,6 +36,7 @@ The demo showcases:
 - Web research with source-aware, noise-filtered responses
 - GitHub repository intelligence and code tracing
 - Long-term memory and user personalization — all stored locally
+---
 
 ## 🏗️ Architecture
 ![Architecture](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/image.png)
@@ -47,7 +48,6 @@ The orchestration layer manages:
 - **Structured outputs** — formats responses consistently across agents
 - **Human-in-the-loop** — surfaces ambiguity for user clarification when needed
 
----
 ---
 
 ## ✨ Core Agents
