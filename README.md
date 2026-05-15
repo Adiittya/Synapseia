@@ -15,7 +15,6 @@
 [![Python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Ollama](https://img.shields.io/badge/ollama-local%20LLMs-black?style=flat-square)](https://ollama.ai)
 [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20local-green?style=flat-square)](#-privacy-first-ai)
 
 </div>
