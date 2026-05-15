@@ -28,7 +28,7 @@
 
 ## 🎥 Demo
 
-> *(Add your main workflow/demo GIF here)*
+> [](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/intro.gif)
 
 The demo showcases:
 - Multi-agent orchestration routing a complex query through specialized agents
