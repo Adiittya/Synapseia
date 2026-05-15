@@ -37,6 +37,17 @@ The demo showcases:
 - GitHub repository intelligence and code tracing
 - Long-term memory and user personalization — all stored locally
 
+## 🏗️ Architecture
+![Architecture](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/image.png)
+
+The orchestration layer manages:
+- **Agent routing** — intelligently selects and chains the right agents per query
+- **Context handling** — injects relevant memory and conversation history
+- **Validation loops** — verifies output correctness before delivery
+- **Structured outputs** — formats responses consistently across agents
+- **Human-in-the-loop** — surfaces ambiguity for user clarification when needed
+
+---
 ---
 
 ## ✨ Core Agents
@@ -50,18 +61,6 @@ Synapseia is built around a modular set of specialized agents. Each one is indep
 | 🧠 **Memory Agent** | Local memory storage for personalization and long-term continuity |
 | 💻 **Code Agent** | GitHub repo understanding, structure mapping, function tracing |
 | ⚡ **Raw Agent** | Lightweight direct responses with zero orchestration overhead |
-
----
-
-## 🏗️ Architecture
-![Architecture](https://raw.githubusercontent.com/Adiittya/Synapseia/main/.streamlit/image.png)
-
-The orchestration layer manages:
-- **Agent routing** — intelligently selects and chains the right agents per query
-- **Context handling** — injects relevant memory and conversation history
-- **Validation loops** — verifies output correctness before delivery
-- **Structured outputs** — formats responses consistently across agents
-- **Human-in-the-loop** — surfaces ambiguity for user clarification when needed
 
 ---
 
